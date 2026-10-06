@@ -23,7 +23,7 @@ export const CharacterSchema = z.object({
   weaponId: z.string().refine((id) => id in WEAPONS, 'unknown weapon'),
   superId: z.string().refine((id) => id in SUPERS, 'unknown super'),
   gadgetId: z.string().refine((id) => id in GADGETS, 'unknown gadget'),
-  colorPalette: z.array(hex).min(3).max(4),
+  colorPalette: z.array(hex).min(3).max(5),
 }).passthrough();
 
 export function validateData() {

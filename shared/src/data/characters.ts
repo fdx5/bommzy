@@ -41,11 +41,11 @@ export const CHARACTERS: CharacterDef[] = [
     id: 'boogie', displayName: '부기', displayNameEn: 'Boogie', concept: '피치색 불도그, 카우보이 모자, 앞치마',
     role: '근접 브루저', roleEn: 'Close-range Brawler', hp: 4200, moveSpeed: SPEED.normal, speedLabel: '보통',
     hitboxRadius: 0.62, weaponId: 'shotgun', superId: 'bigBang', gadgetId: 'bullRush',
-    colorPalette: ['#FFD3B6', '#C79A7A', '#FFFFFF', '#FFAAA5'],
+    colorPalette: ['#FFD3B6', '#C79A7A', '#FFFFFF', '#FFAAA5', '#8EC5F0'],
     skins: [
-      { id: 'default', name: '기본', nameEn: 'Classic', palette: ['#FFD3B6', '#C79A7A', '#FFFFFF', '#FFAAA5'], unlockTrophies: 0 },
-      { id: 'sheriff', name: '보안관', nameEn: 'Sheriff', palette: ['#F2E2C9', '#8FB8DE', '#FFF5BA', '#FFAAA5'], unlockTrophies: 40 },
-      { id: 'berry', name: '딸기 우유', nameEn: 'Berry Milk', palette: ['#FFC8DD', '#FF9EBB', '#FFFFFF', '#C3B1E1'], unlockTrophies: 120 },
+      { id: 'default', name: '기본', nameEn: 'Classic', palette: ['#FFD3B6', '#C79A7A', '#FFFFFF', '#FFAAA5', '#8EC5F0'], unlockTrophies: 0 },
+      { id: 'sheriff', name: '보안관', nameEn: 'Sheriff', palette: ['#F2E2C9', '#8FB8DE', '#FFF5BA', '#FFAAA5', '#FF9EAF'], unlockTrophies: 40 },
+      { id: 'berry', name: '딸기 우유', nameEn: 'Berry Milk', palette: ['#FFC8DD', '#FF9EBB', '#FFFFFF', '#C3B1E1', '#A8E6CF'], unlockTrophies: 120 },
     ],
   },
   {

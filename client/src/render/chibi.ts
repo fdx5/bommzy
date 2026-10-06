@@ -166,8 +166,73 @@ function baseParts(pal: string[], o: { headR?: number; bodyS?: number; noLegs?: 
   return parts;
 }
 
+/**
+ * Thin slab that hugs the front of an ellipsoid (rx, ry, rz) centred at (0, cy, 0): clothing, aprons, patches.
+ * x spans ±w/2 at the bottom and ±topW/2 at the top (tapered bib), y spans [y0, y1].
+ */
+function hugPanel(o: { y0: number; y1: number; w: number; topW?: number; cy: number; rx: number; ry: number; rz: number; lift?: number; thick?: number }) {
+  const g = new THREE.BoxGeometry(1, 1, 1, 12, 8, 1);
+  const pos = g.attributes.position;
+  const lift = o.lift ?? 0.016, thick = o.thick ?? 0.014;
+  for (let i = 0; i < pos.count; i++) {
+    const u = pos.getY(i) + 0.5;                       // 0 bottom → 1 top
+    const y = o.y0 + (o.y1 - o.y0) * u;
+    const halfW = THREE.MathUtils.lerp(o.w, o.topW ?? o.w, u) / 2;
+    const x = pos.getX(i) * 2 * halfW;
+    const k = 1 - (x / o.rx) ** 2 - ((y - o.cy) / o.ry) ** 2;
+    const zs = Math.sqrt(Math.max(0.02, k)) * o.rz;
+    pos.setXYZ(i, x, y, zs + lift + (pos.getZ(i) > 0 ? thick : 0));
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 const W = [-0.34, 0.33, 0.16]; // weapon anchor (right hand, slightly forward)
 const wp = (x: number, y: number, z: number) => [W[0] + x, W[1] + y, W[2] + z];
+
+/**
+ * Boogie's denim apron: hugs the round belly, tapered bib with straps, darker hems with stitches,
+ * a heart pocket — and a round cut-out so the belly button stays on show.
+ */
+function boogieApron(pal: string[]): PartSpec[] {
+  const apron = pal[4] ?? '#8EC5F0';
+  const trim = '#' + new THREE.Color(apron).offsetHSL(0, 0.06, -0.2).getHexString();
+  const stitch = '#FFFFFF';
+  const belly = { cy: 0.42, rx: 0.27 * 1.14, ry: 0.27 * 1.14 * 1.02, rz: 0.27 * 1.14 * 0.9 };
+  const surf = (x: number, y: number, lift: number) => {
+    const k = 1 - (x / belly.rx) ** 2 - ((y - belly.cy) / belly.ry) ** 2;
+    return Math.sqrt(Math.max(0.02, k)) * belly.rz + lift;
+  };
+  const parts: PartSpec[] = [
+    { geo: hugPanel({ ...belly, y0: 0.24, y1: 0.53, w: 0.42, topW: 0.27 }), color: apron, bone: 'body', ol: 0.55 },
+    // hems
+    { geo: hugPanel({ ...belly, y0: 0.235, y1: 0.272, w: 0.43, lift: 0.024, thick: 0.012 }), color: trim, bone: 'body', ol: 0.4 },
+    { geo: hugPanel({ ...belly, y0: 0.505, y1: 0.535, w: 0.28, lift: 0.024, thick: 0.012 }), color: trim, bone: 'body', ol: 0.4 },
+    // straps over the shoulders
+    { geo: capsule(0.018, 0.16), color: trim, bone: 'body', p: [0.13, 0.6, 0.2], r: [-0.55, 0, -0.35], ol: 0.35 },
+    { geo: capsule(0.018, 0.16), color: trim, bone: 'body', p: [-0.13, 0.6, 0.2], r: [-0.55, 0, 0.35], ol: 0.35 },
+    { geo: sphere(0.022, 8, 6), color: '#F5D27A', bone: 'body', p: [0.125, 0.52, surf(0.125, 0.52, 0.04)], ol: 0 },
+    { geo: sphere(0.022, 8, 6), color: '#F5D27A', bone: 'body', p: [-0.125, 0.52, surf(-0.125, 0.52, 0.04)], ol: 0 },
+    // round cut-out: belly skin shows through, ringed by the trim, belly button on top
+    { geo: cyl(0.056, 0.056, 0.012, 20), color: pal[0], bone: 'body', p: [0, 0.42, surf(0, 0.42, 0.028)], r: [Math.PI / 2, 0, 0], ol: 0 },
+    { geo: torus(0.058, 0.011), color: trim, bone: 'body', p: [0, 0.42, surf(0, 0.42, 0.034)], ol: 0 },
+    { geo: sphere(0.03, 10, 8), color: pal[3] ?? '#FFAAA5', bone: 'body', p: [0, 0.42, surf(0, 0.42, 0.036)], s: [1, 1, 0.45], ol: 0 },
+    // heart pocket
+    { geo: sphere(0.028, 10, 8), color: trim, bone: 'body', p: [-0.019, 0.322, surf(-0.019, 0.322, 0.03)], s: [1, 1, 0.4], ol: 0 },
+    { geo: sphere(0.028, 10, 8), color: trim, bone: 'body', p: [0.019, 0.322, surf(0.019, 0.322, 0.03)], s: [1, 1, 0.4], ol: 0 },
+    { geo: cone(0.04, 0.05, 12).rotateZ(Math.PI), color: trim, bone: 'body', p: [0, 0.297, surf(0, 0.297, 0.03)], s: [1, 1, 0.38], ol: 0 },
+  ];
+  // stitches along both hems
+  for (let i = 0; i < 9; i++) {
+    const x = -0.18 + i * 0.045;
+    parts.push({ geo: sphere(0.006, 6, 4), color: stitch, bone: 'body', p: [x, 0.253, surf(x, 0.253, 0.04)], ol: 0 });
+  }
+  for (let i = 0; i < 5; i++) {
+    const x = -0.1 + i * 0.05;
+    parts.push({ geo: sphere(0.006, 6, 4), color: stitch, bone: 'body', p: [x, 0.52, surf(x, 0.52, 0.04)], ol: 0 });
+  }
+  return parts;
+}
 
 function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
   const [main, acc, det, extra] = pal;
@@ -202,8 +267,7 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: cyl(0.44, 0.44, 0.04, 22), color: acc, bone: 'head', p: [0, 1.12, -0.02], r: [-0.12, 0, 0], s: [1, 1, 0.92] },
       { geo: cyl(0.21, 0.26, 0.22, 16), color: acc, bone: 'head', p: [0, 1.24, -0.03], r: [-0.12, 0, 0] },
       { geo: cyl(0.265, 0.265, 0.05, 16), color: extra, bone: 'head', p: [0, 1.16, -0.02], r: [-0.12, 0, 0] },
-      { geo: box(0.38, 0.3, 0.05), color: det, bone: 'body', p: [0, 0.38, 0.24], r: [-0.12, 0, 0] },
-      { geo: sphere(0.045), color: extra, bone: 'body', p: [0, 0.42, 0.28], s: [1, 1, 0.5] },
+      ...boogieApron(pal),
       { geo: cyl(0.035, 0.035, 0.42, 8), color: C.metal, bone: 'weapon', p: wp(0.035, 0.03, 0.18), r: [Math.PI / 2, 0, 0] },
       { geo: cyl(0.035, 0.035, 0.42, 8), color: C.metal, bone: 'weapon', p: wp(-0.035, 0.03, 0.18), r: [Math.PI / 2, 0, 0] },
       { geo: box(0.1, 0.11, 0.22), color: C.wood, bone: 'weapon', p: wp(0, -0.01, -0.06) },
