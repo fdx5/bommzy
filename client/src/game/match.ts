@@ -400,7 +400,7 @@ export class Match {
           if (vis) {
             switch (e.kind) {
               case 'bullet': this.vfx.muzzle(e.x, e.y, e.angle, e.isSuper ? '#FFC94D' : '#FFE27A', e.isSuper); this.vfx.shell(e.x, e.y, e.angle); break;
-              case 'pellet': this.vfx.shotgunPuff(e.x, e.y, e.angle); this.vfx.muzzle(e.x, e.y, e.angle, '#FFD3B6', true); this.vfx.shell(e.x, e.y, e.angle, true); break;
+              case 'pellet': this.vfx.shotgunPuff(e.x, e.y, e.angle); this.vfx.muzzle(e.x, e.y, e.angle, '#FF9A4D', true); this.vfx.shell(e.x, e.y, e.angle, true); break;
               case 'arrow': this.vfx.bowSnap(e.x, e.y, e.angle); break;
               case 'boomerang': this.vfx.swoosh(e.x, e.y, e.angle); break;
               case 'bubble': this.vfx.impact('bubble', e.x + Math.cos(e.angle) * 0.8, e.y + Math.sin(e.angle) * 0.8, e.angle); break;

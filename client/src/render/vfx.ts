@@ -228,7 +228,7 @@ export class VFX {
         break;
       case 'pellet': case 'bigbang':
         this.emit(x, 0.75, z, { count: Math.round(5 * k), color: ['#FFFFFF', '#FFE9DC'], angle: ang, spread: 1.4, speed: [1.5, 3.5], up: [0.5, 1.5], drag: 4, life: [0.25, 0.4], size: [0.25, 0.4], endSize: 0.4, shape: SHAPE.puff });
-        this.emit(x, 0.8, z, { count: Math.round(5 * k), color: ['#FFD3B6', '#FFFFFF'], angle: ang, spread: 1.2, speed: [5, 9], up: [0.5, 2], gravity: 6, drag: 4, life: [0.12, 0.22], size: [0.12, 0.18], shape: SHAPE.streak, align: true });
+        this.emit(x, 0.8, z, { count: Math.round(5 * k), color: ['#FF7A2E', '#FFB067', '#FFFFFF'], angle: ang, spread: 1.2, speed: [5, 9], up: [0.5, 2], gravity: 6, drag: 4, life: [0.12, 0.22], size: [0.12, 0.18], shape: SHAPE.streak, align: true });
         break;
       case 'arrow': case 'meteor':
         this.emit(x, 0.85, z, { count: Math.round(8 * k), color: ['#B5DEFF', '#FFF5BA', '#FFFFFF'], speed: [2, 6], up: [1, 3], gravity: 6, drag: 3, life: [0.3, 0.55], size: [0.16, 0.28], shape: SHAPE.star, spin: 8 });
@@ -239,7 +239,7 @@ export class VFX {
         break;
       case 'bubble': case 'prison':
         for (let i = 0; i < 2; i++) this.emit(x, 0.8, z, { count: 1, color: '#CFF1FF', speed: [0, 0], up: [0, 0], life: [0.3 + i * 0.12, 0.3 + i * 0.12], size: [0.5 + i * 0.4, 0.5 + i * 0.4], endSize: 2.2, shape: SHAPE.ring });
-        this.emit(x, 0.8, z, { count: Math.round(8 * k), color: ['#B5DEFF', '#FFC8DD', '#FFFFFF'], speed: [1.5, 4], up: [1, 3], gravity: 9, drag: 2, life: [0.35, 0.6], size: [0.1, 0.18], shape: SHAPE.glow });
+        this.emit(x, 0.8, z, { count: Math.round(8 * k), color: ['#FF3FA0', '#FF8CC6', '#FFFFFF'], speed: [1.5, 4], up: [1, 3], gravity: 9, drag: 2, life: [0.35, 0.6], size: [0.1, 0.18], shape: SHAPE.glow });
         break;
       default:
         this.emit(x, 0.8, z, { count: Math.round(8 * k), color: ['#FFFFFF', '#FFE3F0'], speed: [2, 5], up: [1, 3], gravity: 6, drag: 3, life: [0.25, 0.45], size: [0.14, 0.24], shape: SHAPE.star });

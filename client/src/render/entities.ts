@@ -37,10 +37,11 @@ class Pool {
   }
 }
 
-function bubbleMaterial(opacity = 0.55) {
+function bubbleMaterial(opacity = 0.55, tint?: THREE.ColorRepresentation) {
   const m = new THREE.ShaderMaterial({
     transparent: true, depthWrite: false,
-    uniforms: { uTime: globalUniforms.uTime, uOpacity: { value: opacity } },
+    defines: tint === undefined ? {} : { USE_TINT: '' },
+    uniforms: { uTime: globalUniforms.uTime, uOpacity: { value: opacity }, uTint: { value: new THREE.Color(tint ?? '#ffffff') } },
     vertexShader: /* glsl */ `
       varying vec3 vN; varying vec3 vV;
       void main() {
@@ -50,13 +51,20 @@ function bubbleMaterial(opacity = 0.55) {
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
     fragmentShader: /* glsl */ `
-      uniform float uTime; uniform float uOpacity; varying vec3 vN; varying vec3 vV;
+      uniform float uTime; uniform float uOpacity; uniform vec3 uTint; varying vec3 vN; varying vec3 vV;
       void main() {
         float f = 1.0 - abs(dot(normalize(vN), vV));
         vec3 rainbow = 0.5 + 0.5 * cos(6.2831 * (f * 1.4 + uTime * 0.25 + vec3(0.0, 0.33, 0.67)));
-        vec3 col = mix(vec3(0.85, 0.95, 1.0), rainbow, 0.55);
         float spec = smoothstep(0.92, 1.0, dot(normalize(vN), normalize(vec3(-0.4, 0.8, 0.4))));
+        #ifdef USE_TINT
+        // saturated body with a dark rim: stands out against the pastel ground
+        vec3 col = mix(uTint, rainbow, 0.25);
+        col = mix(col, uTint * 0.45, smoothstep(0.78, 0.92, f));
+        float a = (0.42 + pow(f, 1.5) * 0.58) * uOpacity + spec;
+        #else
+        vec3 col = mix(vec3(0.85, 0.95, 1.0), rainbow, 0.55);
         float a = (0.12 + pow(f, 2.0) * 0.85) * uOpacity + spec;
+        #endif
         gl_FragColor = vec4(col + spec, min(1.0, a));
         #include <colorspace_fragment>
       }`,
@@ -86,7 +94,8 @@ export class Entities {
     const basic = (c: string) => new THREE.MeshBasicMaterial({ color: c });
     const bulletGeo = new THREE.CapsuleGeometry(0.1, 0.28, 3, 8).rotateZ(Math.PI / 2);
     this.bullets = new Pool(bulletGeo, basic('#FFFFFF'), 220, scene);
-    this.pellets = new Pool(new THREE.SphereGeometry(0.16, 10, 8), basic('#FFFFFF'), 120, scene);
+    const pelletGeo = new THREE.SphereGeometry(0.16, 10, 8);
+    this.pellets = new Pool(pelletGeo, basic('#FFFFFF'), 120, scene, new THREE.InstancedMesh(pelletGeo, outlineMaterial('#7A2410', 0.045), 120));
     // two-tone arrow: white shaft, saturated sky-blue head, lemon star fletching (reads on pastel ground)
     const tint = (g: THREE.BufferGeometry, c: string) => {
       const col = new THREE.Color(c), n = g.attributes.position.count, a = new Float32Array(n * 3);
@@ -104,7 +113,7 @@ export class Entities {
     this.arrows = new Pool(arrowGeo, new THREE.MeshBasicMaterial({ vertexColors: true }), 40, scene, new THREE.InstancedMesh(arrowGeo, outlineMaterial('#2E4A7A', 0.035), 40));
     const rang = new THREE.TorusGeometry(0.32, 0.08, 6, 16, Math.PI * 0.8).rotateX(Math.PI / 2);
     this.boomerangs = new Pool(rang, toonMaterial({ color: '#FFE27A', rim: 0.6 }), 40, scene, new THREE.InstancedMesh(rang, outlineMaterial('#B88A3B', 0.03), 40));
-    this.bubbles = new Pool(new THREE.SphereGeometry(1, 18, 12), bubbleMaterial(), 120, scene);
+    this.bubbles = new Pool(new THREE.SphereGeometry(1, 18, 12), bubbleMaterial(0.9, '#FF3FA0'), 120, scene);
     this.bubbles.mesh.renderOrder = 8;
     const bomb = mergeGeometries([
       new THREE.SphereGeometry(0.24, 14, 10),
@@ -207,9 +216,9 @@ export class Entities {
         break;
       }
       case 'pellet': {
-        this.col.set(p.isSuper ? '#FFAAA5' : '#FFD3B6');
+        this.col.set(p.isSuper ? '#FF3D5A' : '#FF7A2E');
         this.pellets.push(x, 0.7, z, p.isSuper ? 1.4 : 1, 0, 0, 0, this.col);
-        if (doTrail) this.vfx.trail(x, 0.7, z, '#FFFFFF', p.isSuper ? 0.35 : 0.2, SHAPE.puff, 0.2);
+        if (doTrail) this.vfx.trail(x, 0.7, z, p.isSuper ? '#FF8A8A' : '#FFB067', p.isSuper ? 0.4 : 0.26, SHAPE.glow, 0.16);
         break;
       }
       case 'arrow':
@@ -235,6 +244,7 @@ export class Entities {
       case 'bubble':
         this.bubbles.push(x, 0.7, z, p.radius * 0.95 * (1 + Math.sin(world.time * 0.02 + p.id) * 0.06));
         this.shadows.push(x, 0.02, z, 0.6);
+        if (doTrail) this.vfx.trail(x, 0.7, z, '#FF8CC6', 0.24, SHAPE.glow, 0.18);
         break;
       case 'arc': {
         const isPrison = p.superKind === 'prison', isMega = p.superKind === 'megabomb';
