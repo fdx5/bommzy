@@ -119,10 +119,15 @@ if (existsSync(staticDir)) {
   app.use('*', async (c, next) => {
     await next();
     if (/\/(sw\.js|manifest\.webmanifest)$|\/$/.test(c.req.path)) c.header('Cache-Control', 'no-cache');
+    else if (/\.(jpg|png|ico|svg)$/.test(c.req.path)) c.header('Cache-Control', 'public, max-age=86400');
   });
   app.use('*', serveStatic({ root }));
   const indexHtml = readFileSync(resolve(staticDir, 'index.html'), 'utf8');
-  app.get('*', (c) => (c.req.path.startsWith('/api/') ? c.json({ ok: false }, 404) : c.html(indexHtml, 200, { 'Cache-Control': 'no-cache' })));
+  // SPA fallback only for page routes; missing files (robots.txt, favicon.ico, images…) must 404, not return HTML
+  app.get('*', (c) => {
+    if (c.req.path.startsWith('/api/') || /\.[a-z0-9]{2,5}$/i.test(c.req.path)) return c.text('Not found', 404);
+    return c.html(indexHtml, 200, { 'Cache-Control': 'no-cache' });
+  });
 } else {
   console.warn(`[static] ${staticDir} not found — API only (run "npm run build -w client")`);
 }
