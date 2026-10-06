@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ITEM_BY_ID, type CharacterId, type ItemDef, type ItemSlot } from '@pastel/shared';
 import type { BoneName, PartSpec } from './chibi';
+import { FACES, HEAD_Y, eyeAnchor } from './face';
 
 /**
  * Wearable items, fitted per character. Every item is generated from anatomical anchors (head, eyes,
@@ -10,7 +11,7 @@ import type { BoneName, PartSpec } from './chibi';
 
 interface Ellipsoid { cy: number; rx: number; ry: number; rz: number }
 export interface Fit {
-  head: { y: number; r: number; sy: number };
+  head: { y: number; r: number; sx: number; sy: number; sz: number };
   eye: { x: number; y: number; z: number; s: number };
   body: Ellipsoid;
   neck: { y: number; r: number };
@@ -19,7 +20,7 @@ export interface Fit {
   wrist: { x: number; y: number; z: number; r: number; tilt: number };
 }
 
-const headEllipsoid = (h: Fit['head']): Ellipsoid => ({ cy: h.y, rx: h.r * 1.04, ry: h.r * h.sy, rz: h.r });
+const headEllipsoid = (h: Fit['head']): Ellipsoid => ({ cy: h.y, rx: h.r * h.sx, ry: h.r * h.sy, rz: h.r * h.sz });
 const radAt = (e: Ellipsoid, y: number) => { const k = 1 - ((y - e.cy) / e.ry) ** 2; return k > 0 ? Math.sqrt(k) * e.rx : 0; };
 const zAt = (e: Ellipsoid, x: number, y: number) => Math.sqrt(Math.max(0.02, 1 - (x / e.rx) ** 2 - ((y - e.cy) / e.ry) ** 2)) * e.rz;
 
@@ -39,12 +40,12 @@ function fitOf(id: CharacterId): Fit {
   if (FITS[id]) return FITS[id];
   const mongle = id === 'mongle';
   const bs = id === 'boogie' ? 1.14 : 1;
-  const head = { y: 0.86, r: mongle ? 0.42 : 0.36, sy: 0.96 };
-  const es = mongle ? 1.15 : 1, fz = head.r / 0.36;
+  const face = FACES[id];
+  const head = { y: HEAD_Y, r: face.headR, sx: face.headS[0], sy: face.headS[1], sz: face.headS[2] };
   const body: Ellipsoid = mongle ? { cy: 0.32, rx: 0.24 * 1.2, ry: 0.24 * 0.75, rz: 0.24 * 1.2 } : { cy: 0.42, rx: 0.27 * bs, ry: 0.27 * bs * 1.02, rz: 0.27 * bs * 0.9 };
   const fit: Fit = {
     head, body,
-    eye: { x: 0.13 * es, y: 0.875, z: 0.315 * fz, s: es },
+    eye: eyeAnchor(face),
     neck: mongle ? { y: 0.405, r: 0.27 } : crease(head, body),
     arms: id === 'popo' ? 'flipper' : mongle ? 'nub' : 'normal',
     legs: !mongle,
@@ -162,7 +163,7 @@ function hat(it: ItemDef, f: Fit): P[] {
   const h = f.head, r = h.r, top = h.y + r * h.sy;
   const he = headEllipsoid(h);
   const baseY = h.y + r * 0.5, baseR = radAt(he, baseY);
-  const T = (g: THREE.BufferGeometry) => g.rotateX(-0.08); // slight cheeky tilt back
+  const T = (g: THREE.BufferGeometry) => g.scale(h.sx / 1.04, 1, h.sz).rotateX(-0.08); // fit head shape, slight cheeky tilt back
   const out: P[] = [];
   const push = (g: THREE.BufferGeometry, col: string, extra: Partial<P> = {}) => out.push(part(T(g), col, 'head', extra));
   switch (it.style) {

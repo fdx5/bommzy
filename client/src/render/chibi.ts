@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { CharacterId, ItemSlot } from '@pastel/shared';
 import { outfitParts, slotsOf } from './outfit';
 import { toonMaterial, outlineMaterial, type ToonMaterial } from './toon';
+import { FACES, HEAD_Y, headSurfaceZ, type Face } from './face';
 
 /**
  * Procedural chibi (2.5-head) characters. Every part is rigidly bound to one bone and all parts
@@ -45,6 +46,8 @@ export interface PartSpec {
   geo: THREE.BufferGeometry; color: string; bone: BoneName; p?: number[]; r?: number[]; s?: number[] | number; ol?: number; gloss?: number;
   pattern?: { kind: 'stripes' | 'check' | 'bands3'; c2: string; c3?: string; freq: number };
   grp?: ItemSlot;
+  /** extra scale about the model origin, applied after p/r/s (hats widened to the head shape) */
+  post?: number[];
 }
 
 const sphere = (r: number, w = 20, h = 14) => new THREE.SphereGeometry(r, Math.max(w, 12), Math.max(h, 9));
@@ -66,6 +69,7 @@ function bake(spec: PartSpec, out: Baked[]) {
   const r = spec.r ?? [0, 0, 0], p = spec.p ?? [0, 0, 0];
   m.compose(new THREE.Vector3(p[0], p[1], p[2]), new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2])), new THREE.Vector3(s[0], s[1], s[2]));
   g.applyMatrix4(m);
+  if (spec.post) g.scale(spec.post[0], spec.post[1], spec.post[2]);
   g.deleteAttribute('uv');
   g.computeBoundingSphere();
   const bs = g.boundingSphere!;
@@ -137,24 +141,70 @@ function bakeOcclusion(parts: Baked[]) {
   }
 }
 
+/** Eyes for one side (sg = +1 / -1), built on the head surface in the brawler's own style. */
+function eyeParts(f: Face, sg: number): PartSpec[] {
+  const es = f.eyeScale, x = sg * f.eyeX, y = f.eyeY;
+  const z0 = headSurfaceZ(f, x, y) + f.faceZ;
+  const face = (geo: THREE.BufferGeometry, color: string, p: number[], extra: Partial<PartSpec> = {}): PartSpec =>
+    ({ geo, color, bone: 'eyes', p, ol: 0, gloss: 0, ...extra });
+  // highlights always sit up-left so the light reads consistently across the cast
+  const hl = (dx: number, dy: number, r: number, dz = 0.015) => face(sphere(r * es, 10, 8), C.white, [x + dx * es, y + dy * es, z0 + dz]);
+  switch (f.eye) {
+    case 'button': return [
+      face(sphere(0.058 * es, 14, 10), C.eye, [x, y, z0 - 0.016], { s: [1, 1, 0.5] }),
+      face(sphere(0.045 * es, 12, 10), '#5B4A7A', [x, y - 0.008 * es, z0 - 0.004], { s: [1, 1, 0.45] }),
+      hl(-0.017, 0.02, 0.026), hl(0.02, -0.02, 0.012, 0.012),
+    ];
+    case 'tough': {
+      const by = y + 0.085 * es, bx = x + sg * 0.005;
+      return [
+        face(sphere(0.052 * es, 12, 10), C.eye, [x, y, z0 - 0.014], { s: [1, 0.95, 0.5] }),
+        hl(-0.014, 0.016, 0.02, 0.01),
+        // stubby brows, inner ends a touch lower: a plucky (not grumpy) little bulldog (head bone, so blinks don't squash them)
+        { geo: capsule(0.016, 0.045), color: C.nose, bone: 'head', p: [bx, by, headSurfaceZ(f, bx, by) + 0.004], r: [0, 0, sg * 0.16 - Math.PI / 2], s: [1, 1, 0.6], ol: 0, gloss: 0 },
+      ];
+    }
+    case 'dot': return [
+      face(sphere(0.044 * es, 12, 10), C.eye, [x, y, z0 - 0.008], { s: [1, 1.08, 0.6] }),
+      hl(-0.012, 0.015, 0.018, 0.016), hl(0.013, -0.014, 0.008, 0.014),
+    ];
+    case 'almond': return [
+      face(sphere(0.062 * es, 14, 10), C.eye, [x, y, z0 - 0.018], { s: [1.25, 0.82, 0.5], r: [0, 0, sg * 0.28] }),
+      face(sphere(0.042 * es, 12, 10), '#5B4A7A', [x, y - 0.006 * es, z0 - 0.004], { s: [1, 1, 0.45] }),
+      hl(-0.016, 0.014, 0.02, 0.012),
+      // lash flick at the outer corner
+      face(cone(0.016 * es, 0.06 * es, 6), C.eye, [x + sg * 0.072 * es, y + 0.03 * es, z0 - 0.008], { r: [0, 0, -sg * 1.0], s: [1, 1, 0.6] }),
+    ];
+    case 'sparkle': return [
+      face(sphere(0.066 * es, 14, 12), C.eye, [x, y, z0 - 0.02], { s: [0.95, 1.12, 0.55] }),
+      face(sphere(0.052 * es, 14, 10), '#6B58A0', [x, y - 0.008 * es, z0 - 0.006], { s: [0.9, 1, 0.45] }),
+      face(sphere(0.028 * es, 10, 8), '#A893DD', [x, y - 0.034 * es, z0 + 0.004], { s: [1.25, 0.7, 0.4] }),
+      hl(-0.02, 0.028, 0.028, 0.016), hl(0.022, -0.02, 0.013, 0.016),
+      face(new THREE.OctahedronGeometry(0.017 * es, 0), C.white, [x + 0.02 * es, y + 0.034 * es, z0 + 0.012], { s: [1, 1, 0.3] }),
+    ];
+    case 'happy': {
+      // closed, smiling "^^" eyes, turned to follow the curve of the head
+      const yaw = Math.asin(THREE.MathUtils.clamp(x / (f.headR * f.headS[0]), -1, 1)) * 0.8;
+      return [face(torus(0.046 * es, 0.013, Math.PI), C.eye, [x, y - 0.012, z0 + 0.002], { r: [0, yaw, 0], s: [1.1, 1, 1] })];
+    }
+    default: return [
+      face(sphere(0.062 * es, 12, 10), C.eye, [x, y, z0 - 0.02], { s: [0.82, 1.18, 0.55] }),
+      face(sphere(0.047 * es, 12, 10), '#5B4A7A', [x, y - 0.015, z0 - 0.005], { s: [0.8, 0.95, 0.45] }),
+      hl(-0.018, 0.027, 0.024), hl(0.018, -0.023, 0.011, 0.017),
+    ];
+  }
+}
+
 /** Shared chibi base: face, body, limbs. */
-function baseParts(pal: string[], o: { headR?: number; bodyS?: number; noLegs?: boolean; bodyColor?: string; eyeScale?: number; muzzle?: string | null; noArms?: boolean }): PartSpec[] {
-  const body = pal[0], hr = o.headR ?? 0.36, bs = o.bodyS ?? 1, es = o.eyeScale ?? 1;
-  const fz = hr / 0.36; // face features sit on the head surface
+function baseParts(pal: string[], o: { face: Face; bodyS?: number; noLegs?: boolean; bodyColor?: string; muzzle?: string | null; noArms?: boolean }): PartSpec[] {
+  const f = o.face, body = pal[0], hr = f.headR, bs = o.bodyS ?? 1;
+  const fz = hr / 0.36, cx = 0.225 * fz * (f.headS[0] / 1.04), cy = 0.79;
   const parts: PartSpec[] = [
-    { geo: sphere(hr, 22, 16), color: body, bone: 'head', p: [0, 0.86, 0], s: [1.04, 0.96, 1] },
+    { geo: sphere(hr, 22, 16), color: body, bone: 'head', p: [0, HEAD_Y, 0], s: f.headS },
     { geo: sphere(0.27, 18, 12), color: o.bodyColor ?? body, bone: 'body', p: [0, 0.42, 0], s: [bs, bs * 1.02, bs * 0.9] },
-    // eyes: big glossy beans with highlights
-    { geo: sphere(0.062 * es, 12, 10), color: C.eye, bone: 'eyes', p: [0.13 * es, 0.875, 0.315 * fz], s: [0.82, 1.18, 0.55] },
-    { geo: sphere(0.062 * es, 12, 10), color: C.eye, bone: 'eyes', p: [-0.13 * es, 0.875, 0.315 * fz], s: [0.82, 1.18, 0.55] },
-    { geo: sphere(0.047 * es, 12, 10), color: '#5B4A7A', bone: 'eyes', p: [0.13 * es, 0.86, 0.33 * fz], s: [0.8, 0.95, 0.45] },
-    { geo: sphere(0.047 * es, 12, 10), color: '#5B4A7A', bone: 'eyes', p: [-0.13 * es, 0.86, 0.33 * fz], s: [0.8, 0.95, 0.45] },
-    { geo: sphere(0.024 * es, 10, 8), color: C.white, bone: 'eyes', p: [0.112 * es, 0.902, 0.35 * fz] },
-    { geo: sphere(0.024 * es, 10, 8), color: C.white, bone: 'eyes', p: [-0.148 * es, 0.902, 0.35 * fz] },
-    { geo: sphere(0.011 * es, 8, 6), color: C.white, bone: 'eyes', p: [0.148 * es, 0.852, 0.352 * fz] },
-    { geo: sphere(0.011 * es, 8, 6), color: C.white, bone: 'eyes', p: [-0.112 * es, 0.852, 0.352 * fz] },
-    { geo: sphere(0.06, 10, 8), color: C.cheek, bone: 'head', p: [0.225 * fz, 0.79, 0.27 * fz], s: [1, 0.62, 0.4] },
-    { geo: sphere(0.06, 10, 8), color: C.cheek, bone: 'head', p: [-0.225 * fz, 0.79, 0.27 * fz], s: [1, 0.62, 0.4] },
+    ...eyeParts(f, 1), ...eyeParts(f, -1),
+    { geo: sphere(0.06, 10, 8), color: C.cheek, bone: 'head', p: [cx, cy, headSurfaceZ(f, cx, cy) - 0.008], s: [1, 0.62, 0.4] },
+    { geo: sphere(0.06, 10, 8), color: C.cheek, bone: 'head', p: [-cx, cy, headSurfaceZ(f, cx, cy) - 0.008], s: [1, 0.62, 0.4] },
   ];
   const smile = (x: number, y: number, z: number, r: number) =>
     ({ geo: torus(r, 0.008, Math.PI).rotateZ(Math.PI), color: '#3A2C3F', bone: 'head' as BoneName, p: [x, y, z], ol: 0 });
@@ -164,8 +214,14 @@ function baseParts(pal: string[], o: { headR?: number; bodyS?: number; noLegs?: 
     parts.push({ geo: sphere(0.012, 6, 4), color: C.white, bone: 'head', p: [-0.012, 0.812, 0.398] });
     // little "w" mouth under the nose
     parts.push(smile(0.019, 0.746, 0.36, 0.019), smile(-0.019, 0.746, 0.36, 0.019));
+  } else if (f.mouth === 'o') {
+    const my = 0.735, mz = headSurfaceZ(f, 0, my);
+    parts.push(
+      { geo: sphere(0.02, 10, 8), color: '#B0506E', bone: 'head', p: [0, my, mz - 0.002], s: [1, 1.1, 0.35], ol: 0 },
+      { geo: torus(0.021, 0.008), color: '#3A2C3F', bone: 'head', p: [0, my, mz + 0.002], s: [1, 1.12, 1], ol: 0 },
+    );
   } else {
-    parts.push(smile(0, 0.722, 0.338 * fz, 0.028));
+    parts.push(smile(0, 0.722, headSurfaceZ(f, 0, 0.722) + 0.008, 0.028));
   }
   if (!o.noArms) {
     parts.push(
@@ -256,9 +312,10 @@ function boogieApron(pal: string[]): PartSpec[] {
 
 function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
   const [main, acc, det, extra] = pal;
+  const face = FACES[id];
   switch (id) {
     case 'toto': return [
-      ...baseParts(pal, {}),
+      ...baseParts(pal, { face }),
       { geo: sphere(0.1), color: main, bone: 'earL', p: [0.27, 1.14, -0.03], s: [1, 1, 0.7] },
       { geo: sphere(0.1), color: main, bone: 'earR', p: [-0.27, 1.14, -0.03], s: [1, 1, 0.7] },
       { geo: sphere(0.055), color: extra, bone: 'earL', p: [0.28, 1.15, 0.03], s: [1, 1, 0.5] },
@@ -276,7 +333,7 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: cyl(0.085, 0.085, 0.06, 12), color: acc, bone: 'weapon', p: wp(0, 0.02, -0.07), r: [Math.PI / 2, 0, 0] },
     ];
     case 'boogie': return [
-      ...baseParts(pal, { bodyS: 1.14, muzzle: null }),
+      ...baseParts(pal, { face, bodyS: 1.14, muzzle: null }),
       { geo: sphere(0.13), color: det, bone: 'head', p: [0.1, 0.74, 0.25], s: [1, 0.8, 0.8] },
       { geo: sphere(0.13), color: det, bone: 'head', p: [-0.1, 0.74, 0.25], s: [1, 0.8, 0.8] },
       { geo: sphere(0.055), color: C.nose, bone: 'head', p: [0, 0.83, 0.35], s: [1.4, 1, 1] },
@@ -293,7 +350,7 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: box(0.1, 0.11, 0.22), color: C.wood, bone: 'weapon', p: wp(0, -0.01, -0.06) },
     ];
     case 'popo': return [
-      ...baseParts(pal, { muzzle: null, noArms: true }),
+      ...baseParts(pal, { face, muzzle: null, noArms: true }),
       { geo: sphere(0.22), color: det, bone: 'body', p: [0, 0.4, 0.12], s: [1, 1.1, 0.62], grp: 'top' },
       { geo: sphere(0.3, 18, 12), color: det, bone: 'head', p: [0, 0.8, 0.16], s: [1.02, 0.78, 0.66] },
       { geo: cone(0.06, 0.13, 10), color: extra, bone: 'head', p: [0, 0.8, 0.39], r: [Math.PI / 2, 0, 0], s: [1.2, 1, 0.8] },
@@ -308,7 +365,7 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: torus(0.035, 0.012), color: C.gold, bone: 'weapon', p: wp(0, 0.11, 0) },
     ];
     case 'luna': return [
-      ...baseParts(pal, { muzzle: null }),
+      ...baseParts(pal, { face, muzzle: null }),
       { geo: cone(0.11, 0.32, 10), color: main, bone: 'earL', p: [0.19, 1.22, -0.02], r: [0, 0, -0.28] },
       { geo: cone(0.11, 0.32, 10), color: main, bone: 'earR', p: [-0.19, 1.22, -0.02], r: [0, 0, 0.28] },
       { geo: cone(0.065, 0.2, 8), color: det, bone: 'earL', p: [0.185, 1.2, 0.03], r: [0, 0, -0.28] },
@@ -326,7 +383,7 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: new THREE.OctahedronGeometry(0.05), color: acc, bone: 'weapon', p: wp(0, 0, 0.32) },
     ];
     case 'kiki': return [
-      ...baseParts(pal, {}),
+      ...baseParts(pal, { face }),
       { geo: sphere(0.25, 18, 12), color: acc, bone: 'head', p: [0, 0.82, 0.17], s: [1.15, 0.85, 0.62] },
       { geo: sphere(0.11), color: main, bone: 'earL', p: [0.37, 0.88, 0], s: [0.6, 1, 1] },
       { geo: sphere(0.11), color: main, bone: 'earR', p: [-0.37, 0.88, 0], s: [0.6, 1, 1] },
@@ -353,7 +410,7 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
         );
       }
       return [
-        ...baseParts(pal, { headR: 0.42, noLegs: true, muzzle: null, eyeScale: 1.15, noArms: true }).filter((p) => p.bone !== 'body'),
+        ...baseParts(pal, { face, noLegs: true, muzzle: null, noArms: true }).filter((p) => p.bone !== 'body'),
         { geo: sphere(0.24, 14, 10), color: main, bone: 'body', p: [0, 0.32, 0], s: [1.2, 0.75, 1.2] },
         ...tentacles,
         { geo: torus(0.36, 0.055), color: acc, bone: 'body', p: [0, 0.48, 0], r: [Math.PI / 2, 0, 0] },
@@ -379,7 +436,10 @@ function characterGeometry(id: CharacterId, palette: string[], items: string[] =
   if (!g) {
     const list: Baked[] = [];
     const worn = slotsOf(outfit);
-    const specs = characterParts(id, palette).filter((p) => !p.grp || !worn.has(p.grp)).concat(outfitParts(id, outfit));
+    const [hx, , hz] = FACES[id].headS;
+    const specs = characterParts(id, palette).filter((p) => !p.grp || !worn.has(p.grp))
+      .map((p) => (p.grp === 'hat' ? { ...p, post: [hx / 1.04, 1, hz] } : p))
+      .concat(outfitParts(id, outfit));
     for (const spec of specs) bake(spec, list);
     bakeOcclusion(list);
     g = mergeGeometries(list.map((b) => b.g), false)!;
