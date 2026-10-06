@@ -5,6 +5,7 @@ import { CHAR_BY_ID, superOf, weaponOf, type World, type Projectile, type Charac
 import { toonMaterial, outlineMaterial, radialTexture, globalUniforms } from './toon';
 import type { VFX } from './vfx';
 import { SHAPE } from './vfx';
+import { bananaGeometry } from './banana';
 
 const tmpObj = new THREE.Object3D();
 
@@ -35,6 +36,27 @@ class Pool {
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
+}
+
+/** Swirling wind funnel for Kiki's tornado super (transparent, spins via uTime). */
+function vortexMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { uTime: globalUniforms.uTime },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime; varying vec2 vUv;
+      void main() {
+        float s = fract(vUv.x * 5.0 + vUv.y * 1.6 - uTime * 2.6);
+        float band = smoothstep(0.0, 0.18, s) * (1.0 - smoothstep(0.32, 0.6, s));
+        float fade = smoothstep(0.0, 0.25, vUv.y) * (1.0 - smoothstep(0.7, 1.0, vUv.y));
+        vec3 col = mix(vec3(1.0, 0.97, 0.8), vec3(1.0, 0.86, 0.3), vUv.y);
+        gl_FragColor = vec4(col, band * fade * 0.85);
+        #include <colorspace_fragment>
+      }`,
+  });
 }
 
 function bubbleMaterial(opacity = 0.55, tint?: THREE.ColorRepresentation) {
@@ -85,6 +107,7 @@ export class Entities {
   private cubes: Pool;
   private flowers: Pool;
   private superStars: Pool;
+  private vortices: Pool;
   readonly aim: AimIndicator;
   private col = new THREE.Color();
   /** Last drawn position per projectile, for continuous tracers. */
@@ -112,8 +135,12 @@ export class Entities {
       tint(new THREE.OctahedronGeometry(0.17).scale(0.45, 1, 1).rotateX(Math.PI / 2).translate(-0.36, 0, 0), '#FFD84D'),
     ])!;
     this.arrows = new Pool(arrowGeo, new THREE.MeshBasicMaterial({ vertexColors: true }), 40, scene, new THREE.InstancedMesh(arrowGeo, outlineMaterial('#2E4A7A', 0.035), 40));
-    const rang = new THREE.TorusGeometry(0.32, 0.08, 6, 16, Math.PI * 0.8).rotateX(Math.PI / 2);
-    this.boomerangs = new Pool(rang, toonMaterial({ color: '#FFE27A', rim: 0.6 }), 40, scene, new THREE.InstancedMesh(rang, outlineMaterial('#B88A3B', 0.03), 40));
+    // banana: centred on its spin axis so it whirls like a boomerang
+    const rang = bananaGeometry(0, 1, 0.11, true).translate(0, 0, 0.05);
+    this.boomerangs = new Pool(rang, toonMaterial({ vertexColors: true, rim: 0.55, spec: 0.5, shadowTint: '#E8C7A0' }), 40, scene, new THREE.InstancedMesh(rang, outlineMaterial('#8A5A12', 0.028), 40));
+    const funnel = new THREE.CylinderGeometry(1, 0.45, 1.8, 28, 1, true).translate(0, 0.9, 0);
+    this.vortices = new Pool(funnel, vortexMaterial(), 8, scene);
+    this.vortices.mesh.renderOrder = 7;
     this.bubbles = new Pool(new THREE.SphereGeometry(1, 18, 12), bubbleMaterial(0.9, '#FF3FA0'), 120, scene);
     this.bubbles.mesh.renderOrder = 8;
     const bomb = mergeGeometries([
@@ -150,7 +177,7 @@ export class Entities {
 
   update(world: World, alpha: number, dt: number, localId: string | null) {
     const t = world.time / 1000;
-    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars]) p.begin();
+    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars, this.vortices]) p.begin();
     this.trailT += dt;
     const doTrail = this.trailT > 0.03;
     if (doTrail) this.trailT = 0;
@@ -165,14 +192,22 @@ export class Entities {
       if (world.visible(localId, f)) this.shadows.push(x, 0.02, z, 1.6);
       if (f.superKind === 'tornado' && world.time < f.superUntil) {
         const r = superOf(CHAR_BY_ID[f.charId]).radius * 0.8;
-        for (let k = 0; k < 2; k++) {
-          const a = t * 9 + k * Math.PI;
-          this.boomerangs.push(x + Math.cos(a) * r, 0.7, z + Math.sin(a) * r, 2.6, -a * 3);
-          if (doTrail) this.vfx.trail(x + Math.cos(a) * r, 0.6, z + Math.sin(a) * r, '#FFF5BA', 0.5, SHAPE.puff, 0.35);
+        this.vortices.push(x, 0, z, new THREE.Vector3(r * 1.05, 1.3, r * 1.05), -t * 5);
+        for (let k = 0; k < 3; k++) {
+          const a = t * 9 + (k * Math.PI * 2) / 3, h = 0.7 + Math.sin(t * 6 + k) * 0.35;
+          const bx = x + Math.cos(a) * r, bz = z + Math.sin(a) * r;
+          this.boomerangs.push(bx, h, bz, 2.2, -a * 3, 0.3, 0);
+          if (doTrail) {
+            this.vfx.trail(bx, h, bz, '#FFE27A', 0.6, SHAPE.glow, 0.25);
+            this.vfx.emit(bx, h, bz, { count: 1, color: ['#FFFFFF', '#FFF5BA'], angle: a + Math.PI / 2, spread: 0.2, speed: [4, 6], up: [0, 0.5], drag: 6, life: [0.18, 0.28], size: [0.25, 0.35], shape: SHAPE.streak, align: true });
+          }
         }
-        if (doTrail) this.vfx.emit(x, 0.2, z, { count: 2, color: ['#FFFFFF', '#FFF5BA'], speed: [3, 5], up: [0.5, 1.5], life: [0.3, 0.5], size: [0.3, 0.5], shape: SHAPE.puff, drag: 2 });
+        if (doTrail) this.vfx.emit(x, 0.2, z, { count: 3, color: ['#FFFFFF', '#FFF5BA', '#FFE27A'], speed: [4, 7], up: [0.5, 2], life: [0.3, 0.5], size: [0.3, 0.55], shape: SHAPE.puff, drag: 2 });
       }
-      if (f.superKind === 'gatling' && world.time < f.superUntil && doTrail) this.vfx.sparkle(x, 1.2, z, '#FFE27A', 1, 0.6);
+      if (f.superKind === 'gatling' && world.time < f.superUntil) {
+        this.markers.push(x, 0.07, z, 1.1 + Math.sin(t * 20) * 0.12);
+        if (doTrail) { this.vfx.sparkle(x, 1.2, z, '#FFE27A', 2, 0.7); this.vfx.trail(x, 0.9, z, '#FFB020', 1.6, SHAPE.glow, 0.1); }
+      }
     }
 
     // pickups
@@ -213,7 +248,7 @@ export class Entities {
       }
     }
 
-    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars]) p.end();
+    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars, this.vortices]) p.end();
   }
 
   private ownerColor(world: World, p: Projectile) {
@@ -238,7 +273,12 @@ export class Entities {
       }
       case 'pellet': {
         this.col.set(p.isSuper ? '#FF3D5A' : '#FF7A2E');
-        this.pellets.push(x, 0.7, z, p.isSuper ? 1.4 : 1, 0, 0, 0, this.col);
+        this.pellets.push(x, 0.7, z, p.isSuper ? 1.6 : 1, 0, 0, 0, this.col);
+        if (p.isSuper) {
+          const lp = this.lastPos.get(p.id);
+          if (lp) this.vfx.tracer(lp.x, lp.z, x, z, 0.7, '#FF6A4D', 0.45, 0.18, 0.4);
+          this.lastPos.set(p.id, { x, z });
+        }
         if (doTrail) this.vfx.trail(x, 0.7, z, p.isSuper ? '#FF8A8A' : '#FFB067', p.isSuper ? 0.4 : 0.26, SHAPE.glow, 0.16);
         break;
       }
@@ -255,12 +295,17 @@ export class Entities {
         if (doTrail) {
           this.vfx.trail(x, 0.85, z, '#FFFFFF', big ? 1.6 : 0.75, SHAPE.glow, 0.12);
           this.vfx.trail(x, 0.85, z, big ? '#FFF5BA' : '#BFE3FF', big ? 0.6 : 0.26, SHAPE.star, big ? 0.6 : 0.4);
+          if (big) {
+            this.vfx.trail(x, 0.85, z, '#FFB020', 2.4, SHAPE.glow, 0.16);
+            this.vfx.emit(x, 0.85, z, { count: 3, color: ['#FFFFFF', '#FFD84D', '#FF8A2E'], angle: ang + Math.PI, spread: 0.7, speed: [5, 9], up: [0, 1.2], drag: 4, life: [0.2, 0.35], size: [0.3, 0.45], shape: SHAPE.streak, align: true });
+          }
         }
         break;
       }
       case 'boomerang':
-        this.boomerangs.push(x, 0.75, z, 1.2, -p.spin);
-        if (doTrail) this.vfx.trail(x, 0.75, z, '#FFF5BA', 0.3, SHAPE.puff, 0.18);
+        this.boomerangs.push(x, 0.8, z, 1.35, -p.spin);
+        this.shadows.push(x, 0.02, z, 0.9);
+        if (doTrail) this.vfx.trail(x, 0.8, z, '#FFE27A', 0.4, SHAPE.glow, 0.16);
         break;
       case 'bubble':
         this.bubbles.push(x, 0.7, z, p.radius * 0.95 * (1 + Math.sin(world.time * 0.02 + p.id) * 0.06));
@@ -275,7 +320,16 @@ export class Entities {
         // landing marker (enemy throws are red-ish so you can dodge)
         const tt = Math.min(1, p.t);
         this.markers.push(p.tx, 0.05, p.ty, p.splash * (0.4 + 0.6 * tt));
-        if (doTrail) this.vfx.sparkle(x, p.z + 0.3, z, isMega ? '#FFC94D' : '#FFAAA5', 1, 0.1);
+        if (isMega) {
+          // pulsing danger ring + spitting fuse
+          this.markers.push(p.tx, 0.05, p.ty, p.splash * (0.95 + Math.sin(world.time * 0.018) * 0.05));
+          if (doTrail) {
+            this.vfx.emit(x, p.z + 0.7, z, { count: 3, color: ['#FFFFFF', '#FFE27A', '#FF8A2E'], speed: [1.5, 3.5], up: [1.5, 3.5], gravity: 6, drag: 1.5, life: [0.2, 0.4], size: [0.14, 0.24], shape: SHAPE.star });
+            this.vfx.trail(x, p.z, z, '#FF8A8A', 1.6, SHAPE.glow, 0.12);
+          }
+        } else if (isPrison) {
+          if (doTrail) { this.vfx.sparkle(x, p.z, z, '#FFC8DD', 2, 0.8); this.vfx.trail(x, p.z, z, '#CFF1FF', 1.4, SHAPE.glow, 0.15); }
+        } else if (doTrail) this.vfx.sparkle(x, p.z + 0.3, z, '#FFAAA5', 1, 0.1);
         void mine;
         break;
       }

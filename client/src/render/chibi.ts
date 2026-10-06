@@ -4,6 +4,7 @@ import type { CharacterId, ItemSlot } from '@pastel/shared';
 import { outfitParts, slotsOf } from './outfit';
 import { toonMaterial, outlineMaterial, type ToonMaterial } from './toon';
 import { FACES, HEAD_Y, headSurfaceZ, type Face } from './face';
+import { bananaGeometry, BANANA } from './banana';
 
 /**
  * Procedural chibi (2.5-head) characters. Every part is rigidly bound to one bone and all parts
@@ -396,7 +397,9 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: torus(0.17, 0.04, Math.PI * 1.4), color: main, bone: 'tail', p: [0, 0.48, -0.36], r: [0, Math.PI / 2, 0.4] },
       { geo: cone(0.07, 0.12, 8), color: det, bone: 'tail', p: [0.05, 0.64, -0.42], r: [0, 0, -1.4] },
       { geo: cone(0.07, 0.12, 8), color: det, bone: 'tail', p: [-0.05, 0.64, -0.42], r: [0, 0, 1.4] },
-      { geo: torus(0.17, 0.05, Math.PI * 0.75), color: '#FFE27A', bone: 'weapon', p: wp(0.05, 0, 0.08), r: [Math.PI / 2, 0, 0.6] },
+      { geo: bananaGeometry(0.06, 0.87), color: BANANA.body, bone: 'weapon', p: wp(0.02, 0, 0.12), r: [0, Math.PI / 2, 0.5], s: 0.48 },
+      { geo: bananaGeometry(0, 0.07), color: BANANA.tip, bone: 'weapon', p: wp(0.02, 0, 0.12), r: [0, Math.PI / 2, 0.5], s: 0.48, ol: 0.4 },
+      { geo: bananaGeometry(0.86, 1), color: BANANA.stem, bone: 'weapon', p: wp(0.02, 0, 0.12), r: [0, Math.PI / 2, 0.5], s: 0.48, ol: 0.4 },
     ];
     case 'mongle': {
       const tentacles: PartSpec[] = [];
