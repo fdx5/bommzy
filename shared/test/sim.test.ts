@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  World, buildMeadow, validateData, balanceReport, segCircle, segAABB, emptyInput, BUSH, isVisibleTo,
+  World, buildMeadow, validateData, balanceReport, SUPER_CHARGE_RATE, segCircle, segAABB, emptyInput, BUSH, isVisibleTo,
   clusterBushes, CHARACTERS, type PlayerSlot, type MatchConfig, type BushDef,
 } from '../src';
 
@@ -23,10 +23,10 @@ function duel(a: PlayerSlot['charId'], b: PlayerSlot['charId'], gap = 6) {
 
 describe('data', () => {
   it('passes zod validation', () => { expect(() => validateData()).not.toThrow(); });
-  it('keeps TTK in 2.5~4.5s and super in 4~7 attacks', () => {
+  it('keeps TTK in 2.5~4.5s and super in (4~7 attacks) / SUPER_CHARGE_RATE', () => {
     for (const r of balanceReport()) {
       expect(r.ttk).toBeGreaterThanOrEqual(2.5); expect(r.ttk).toBeLessThanOrEqual(4.5);
-      expect(r.attacksPerSuper).toBeGreaterThanOrEqual(4); expect(r.attacksPerSuper).toBeLessThanOrEqual(7);
+      expect(r.attacksPerSuper).toBeGreaterThanOrEqual(4 / SUPER_CHARGE_RATE - 0.01); expect(r.attacksPerSuper).toBeLessThanOrEqual(7 / SUPER_CHARGE_RATE + 0.01);
     }
   });
 });

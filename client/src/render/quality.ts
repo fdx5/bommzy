@@ -5,7 +5,10 @@ export interface Quality {
   pixelRatio: number;
   shadows: boolean;
   shadowSize: number;
-  post: boolean;      // bloom + grading pass
+  post: boolean;      // post-processing composer (grading pass)
+  bloom: boolean;     // bloom inside the composer (high only)
+  sharpen: number;    // grade-pass unsharp amount, 0 = off
+  anisotropy: number; // ground texture filtering
   msaa: boolean;
   particles: number;  // particle pool size
 }
@@ -20,8 +23,13 @@ export function makeQuality(level: QualityLevel): Quality {
     level,
     pixelRatio: Math.min(dpr, cap),
     shadows: level !== 'low',
-    shadowSize: level === 'high' ? 2048 : 1024,
-    post: level === 'high',
+    // desktop medium GPUs handle the bigger map easily; it removes most shadow stair-stepping
+    shadowSize: level === 'high' || (level === 'medium' && !mobile) ? 2048 : 1024,
+    // grading is a single cheap full-screen pass, so desktop medium gets it too (bloom stays high-only)
+    post: level === 'high' || (level === 'medium' && !mobile),
+    bloom: level === 'high',
+    sharpen: level === 'high' ? 0.35 : level === 'medium' ? 0.2 : 0,
+    anisotropy: level === 'low' ? 1 : level === 'medium' ? 8 : 16,
     msaa: level !== 'low',
     particles: level === 'low' ? 600 : level === 'medium' ? 1200 : 2000,
   };

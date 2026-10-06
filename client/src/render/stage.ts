@@ -8,16 +8,31 @@ import { makeQuality, type Quality, type QualityLevel } from './quality';
 import { globalUniforms } from './toon';
 
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.0 }, uVignette: { value: 0.22 }, uFlash: { value: 0 }, uFlashColor: { value: new THREE.Color('#FFE6F3') } },
+  uniforms: {
+    tDiffuse: { value: null }, uSat: { value: 1.0 }, uVignette: { value: 0.2 }, uFlash: { value: 0 }, uFlashColor: { value: new THREE.Color('#FFE6F3') },
+    uTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) }, uSharpen: { value: 0 }, uContrast: { value: 1.07 },
+  },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  // runs on linear HDR before OutputPass tone-maps it
   fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse; uniform float uSat; uniform float uVignette; uniform float uFlash; uniform vec3 uFlashColor; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uSat; uniform float uVignette; uniform float uFlash; uniform vec3 uFlashColor;
+    uniform vec2 uTexel; uniform float uSharpen; uniform float uContrast; varying vec2 vUv;
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
-      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+      // light unsharp mask: crisper outlines & textures after MSAA, clamped so it never rings into black
+      if (uSharpen > 0.0) {
+        vec3 n = texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb
+               + texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb;
+        c.rgb = max(c.rgb + (c.rgb - n * 0.25) * uSharpen, c.rgb * 0.75);
+      }
+      // gentle filmic contrast pivoting on mid grey
+      c.rgb = 0.18 * pow(max(c.rgb, vec3(0.0)) / 0.18, vec3(uContrast));
+      float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
       c.rgb = mix(vec3(l), c.rgb, uSat);
-      // pastel lift: raise shadows toward lavender instead of black
-      c.rgb = mix(c.rgb, c.rgb * 0.95 + vec3(0.02, 0.014, 0.035), 0.5);
+      // split toning: lavender shadows, warm cream highlights (pastel, never black)
+      float hl = smoothstep(0.08, 0.9, l);
+      c.rgb *= mix(vec3(0.97, 0.955, 1.04), vec3(1.035, 1.01, 0.975), hl);
+      c.rgb = mix(c.rgb, c.rgb * 0.95 + vec3(0.02, 0.014, 0.035), 0.5 * (1.0 - hl));
       vec2 d = vUv - 0.5;
       float v = smoothstep(0.85, 0.2, length(d * vec2(1.0, 0.8)));
       c.rgb *= mix(1.0 - uVignette, 1.0, v);
@@ -81,10 +96,14 @@ export class Stage {
     const rt = new THREE.WebGLRenderTarget(size.x || 1, size.y || 1, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(this.renderer, rt);
     this.renderPass = new RenderPass(this.scene, this.viewCamera);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.2, 0.45, 0.93);
     this.grade = new ShaderPass(GradeShader);
+    this.grade.uniforms.uSharpen.value = this.quality.sharpen;
     this.composer.addPass(this.renderPass);
-    this.composer.addPass(this.bloom);
+    this.bloom = undefined;
+    if (this.quality.bloom) {
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.26, 0.5, 0.9);
+      this.composer.addPass(this.bloom);
+    }
     this.composer.addPass(this.grade);
     this.composer.addPass(new OutputPass());
   }
@@ -100,6 +119,10 @@ export class Stage {
     const w = window.innerWidth, h = window.innerHeight;
     this.renderer.setSize(w, h, false);
     this.composer?.setSize(w, h);
+    if (this.grade) {
+      const px = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      (this.grade.uniforms.uTexel.value as THREE.Vector2).set(1 / Math.max(1, px.x), 1 / Math.max(1, px.y));
+    }
     this.camera.aspect = w / h;
     if (this.viewCamera !== this.camera) { this.viewCamera.aspect = w / h; this.viewCamera.updateProjectionMatrix(); }
     // keep ~22m horizontally visible on narrow screens, ~17m vertically on wide ones

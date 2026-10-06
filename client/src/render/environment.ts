@@ -69,6 +69,8 @@ export class Environment {
   readonly sun: THREE.DirectionalLight;
   readonly hemi: THREE.HemisphereLight;
   private preset: LightPreset;
+  private lightBasis!: { fwd: THREE.Vector3; right: THREE.Vector3; up: THREE.Vector3 };
+  private snapTmp = new THREE.Vector3();
   readonly theme: Theme;
   private rng = new RNG(99);
   private trees: Props[] = [];
@@ -101,6 +103,11 @@ export class Environment {
     this.sun = new THREE.DirectionalLight(P.sun, P.sunI);
     this.sunOffset = new THREE.Vector3(...P.sunDir).normalize().multiplyScalar(40);
     this.sun.position.copy(this.sunOffset);
+    {
+      const fwd = this.sunOffset.clone().normalize().negate();
+      const right = new THREE.Vector3().crossVectors(fwd, THREE.Object3D.DEFAULT_UP).normalize();
+      this.lightBasis = { fwd, right, up: new THREE.Vector3().crossVectors(right, fwd) };
+    }
     if (quality.shadows) {
       this.sun.castShadow = true;
       this.sun.shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
@@ -200,7 +207,7 @@ export class Environment {
 
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = this.quality.level === 'low' ? 1 : 8;
+    tex.anisotropy = this.quality.anisotropy;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(half * 2, half * 2), toonMaterial({ map: tex, rim: 0 }));
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -847,8 +854,20 @@ export class Environment {
   }
 
   update(dt: number, time: number, world: World | null, focus: THREE.Vector3, localCluster: number) {
-    // shadow camera follows the action
-    this.sun.target.position.set(focus.x, 0, focus.z);
+    // shadow camera follows the action, snapped to whole shadow-map texels so edges don't shimmer while moving
+    let fx = focus.x, fz = focus.z;
+    if (this.sun.castShadow) {
+      const { right, up, fwd } = this.lightBasis;
+      const cam = this.sun.shadow.camera;
+      const texel = (cam.right - cam.left) / this.sun.shadow.mapSize.x;
+      const p = this.snapTmp.set(fx, 0, fz);
+      const r = Math.round(p.dot(right) / texel) * texel, u = Math.round(p.dot(up) / texel) * texel, f = p.dot(fwd);
+      // rebuild in light space, then slide along the light ray back onto the ground plane
+      p.copy(right).multiplyScalar(r).addScaledVector(up, u).addScaledVector(fwd, f);
+      p.addScaledVector(fwd, -p.y / fwd.y);
+      fx = p.x; fz = p.z;
+    }
+    this.sun.target.position.set(fx, 0, fz);
     this.sun.position.copy(this.sun.target.position).add(this.sunOffset);
     if (!world) return;
 

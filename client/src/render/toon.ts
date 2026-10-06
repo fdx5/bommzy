@@ -10,14 +10,23 @@ export const globalUniforms = {
 };
 
 let gradient: THREE.DataTexture | null = null;
-/** 3-step toon ramp. Dark band stays bright: the purple tint comes from the hemisphere light. */
+/**
+ * 3-step toon ramp (105 / 190 / 255). Dark band stays bright: the purple tint comes from the hemisphere light.
+ * 64 texels sampled linearly with narrow smoothstep transitions: band edges stay crisp but anti-aliased
+ * instead of stair-stepping across curved surfaces.
+ */
 export function toonGradient() {
   if (gradient) return gradient;
-  const steps = [105, 190, 255, 255];
-  const data = new Uint8Array(steps.length * 4);
-  steps.forEach((v, i) => data.set([v, v, v, 255], i * 4));
-  gradient = new THREE.DataTexture(data, steps.length, 1, THREE.RGBAFormat);
-  gradient.minFilter = gradient.magFilter = THREE.NearestFilter;
+  const N = 64, soft = 0.022;
+  const ss = (e0: number, e1: number, x: number) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+  const data = new Uint8Array(N * 4);
+  for (let i = 0; i < N; i++) {
+    const x = (i + 0.5) / N;
+    const v = Math.round(105 + 85 * ss(0.25 - soft, 0.25 + soft, x) + 65 * ss(0.5 - soft, 0.5 + soft, x));
+    data.set([v, v, v, 255], i * 4);
+  }
+  gradient = new THREE.DataTexture(data, N, 1, THREE.RGBAFormat);
+  gradient.minFilter = gradient.magFilter = THREE.LinearFilter;
   gradient.generateMipmaps = false;
   gradient.needsUpdate = true;
   return gradient;

@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { CHARACTERS, weaponOf, type CharacterDef } from './characters';
 import { WEAPONS, SUPERS, GADGETS, type WeaponDef } from './weapons';
 
+/** Global multiplier on how fast the super gauge fills (hits and kill bonus). 1.4 = 40% faster. */
+export const SUPER_CHARGE_RATE = 1.4;
+
 const hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
 export const WeaponSchema = z.object({
@@ -68,7 +71,7 @@ export function sustainedDps(w: WeaponDef) {
 
 export function attacksPerSuper(w: WeaponDef) {
   const projectiles = w.pelletCount * w.burstCount * (w.projectileType === 'boomerang' ? 2 : 1);
-  return 100 / (w.superChargePerHit * projectiles);
+  return 100 / (w.superChargePerHit * SUPER_CHARGE_RATE * projectiles);
 }
 
 export function averageHp() {

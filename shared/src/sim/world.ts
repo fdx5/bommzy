@@ -1,5 +1,6 @@
 import { CHAR_BY_ID, weaponOf, superOf, gadgetOf, type CharacterDef } from '../data/characters';
 import type { WeaponDef } from '../data/weapons';
+import { SUPER_CHARGE_RATE } from '../data/balance';
 import { clamp, segCircle, segAABB, RNG, wrapAngle, DEG, type Vec2 } from '../math';
 import { SpatialGrid } from './grid';
 import { NavGrid } from './nav';
@@ -707,7 +708,7 @@ export class World {
       if (!o.isSuper && !o.poison) {
         const w = this.weapon(attacker);
         const before = attacker.superCharge;
-        attacker.superCharge = Math.min(1, attacker.superCharge + w.superChargePerHit / 100);
+        attacker.superCharge = Math.min(1, attacker.superCharge + (w.superChargePerHit * SUPER_CHARGE_RATE) / 100);
         if (before < 1 && attacker.superCharge >= 1) this.events.push({ type: 'superReady', id: attacker.id });
       }
     }
@@ -733,7 +734,7 @@ export class World {
       killer.kills++; killer.streak++;
       if (killer.inBush >= 0) { killer.bushKills++; this.stats.bushKills++; }
       const before = killer.superCharge;
-      killer.superCharge = Math.min(1, killer.superCharge + RULES.killSuperBonus);
+      killer.superCharge = Math.min(1, killer.superCharge + RULES.killSuperBonus * SUPER_CHARGE_RATE);
       if (before < 1 && killer.superCharge >= 1) this.events.push({ type: 'superReady', id: killer.id });
       // absorb the victim's power cubes
       if (victim.cubes > 0) {
