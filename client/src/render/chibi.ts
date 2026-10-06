@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { CharacterId } from '@pastel/shared';
+import type { CharacterId, ItemSlot } from '@pastel/shared';
+import { outfitParts, slotsOf } from './outfit';
 import { toonMaterial, outlineMaterial, type ToonMaterial } from './toon';
 
 /**
@@ -8,7 +9,7 @@ import { toonMaterial, outlineMaterial, type ToonMaterial } from './toon';
  * are merged into ONE SkinnedMesh (+1 outline hull sharing the skeleton) → 2 draw calls/character.
  */
 
-type BoneName =
+export type BoneName =
   | 'root' | 'hips' | 'body' | 'head' | 'eyes' | 'earL' | 'earR' | 'armL' | 'armR' | 'weapon'
   | 'legL' | 'legR' | 'tail' | 'cape' | 't0' | 't1' | 't2' | 't3' | 't4' | 't5';
 
@@ -36,8 +37,15 @@ const C = {
   gold: '#F5D27A', metal: '#BDB6D9', metalDark: '#8E86B3', wood: '#D9A877', orange: '#FFB38A', glass: '#CFF1FF',
 };
 
-/** `ol` = outline weight (0 = no line, e.g. eyes/highlights); defaults from part size. */
-interface PartSpec { geo: THREE.BufferGeometry; color: string; bone: BoneName; p?: number[]; r?: number[]; s?: number[] | number; ol?: number }
+/**
+ * `ol` = outline weight (0 = no line); `gloss` = specular dot (metal/jewellery);
+ * `pattern` = baked vertex-colour pattern; `grp` = built-in gear removed when that slot is equipped.
+ */
+export interface PartSpec {
+  geo: THREE.BufferGeometry; color: string; bone: BoneName; p?: number[]; r?: number[]; s?: number[] | number; ol?: number; gloss?: number;
+  pattern?: { kind: 'stripes' | 'check' | 'bands3'; c2: string; c3?: string; freq: number };
+  grp?: ItemSlot;
+}
 
 const sphere = (r: number, w = 20, h = 14) => new THREE.SphereGeometry(r, Math.max(w, 12), Math.max(h, 9));
 const hemi = (r: number) => new THREE.SphereGeometry(r, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -64,7 +72,7 @@ function bake(spec: PartSpec, out: Baked[]) {
   const n = g.attributes.position.count;
   const col = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4), ol = new Float32Array(n), sp = new Float32Array(n);
   // one glossy dot per character: only big head-level shapes (head, helmet, hat crown) catch the specular
-  const gloss = (spec.bone === 'head' || spec.bone === 'body') && bs.radius > 0.24 && !NO_LINE.has(spec.color) ? 1 : 0;
+  const gloss = spec.gloss ?? ((spec.bone === 'head' || spec.bone === 'body') && bs.radius > 0.24 && !NO_LINE.has(spec.color) ? 1 : 0);
   const c = new THREE.Color(spec.color);
   const bi = BONE_INDEX[spec.bone];
   // line weight: tiny parts and facial details get none, small accessories a finer line
@@ -77,6 +85,18 @@ function bake(spec: PartSpec, out: Baked[]) {
   for (let i = 0; i < n; i++) { const k = key(i); const v = acc.get(k) ?? new THREE.Vector3(); v.x += nor.getX(i); v.y += nor.getY(i); v.z += nor.getZ(i); acc.set(k, v); }
   const on = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) { const v = acc.get(key(i))!.clone().normalize(); on[i * 3] = v.x; on[i * 3 + 1] = v.y; on[i * 3 + 2] = v.z; }
+  if (spec.pattern) {
+    const pt = spec.pattern, c2 = new THREE.Color(pt.c2), c3 = new THREE.Color(pt.c3 ?? pt.c2);
+    for (let i = 0; i < n; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      let pick = 0;
+      if (pt.kind === 'stripes') pick = Math.floor(y * pt.freq + 1000) % 2;
+      else if (pt.kind === 'check') pick = (Math.floor(x * pt.freq + 1000) + Math.floor(y * pt.freq + 1000) + Math.floor(z * pt.freq * 0.5 + 1000)) % 2;
+      else pick = Math.floor(y * pt.freq + 1000) % 3;
+      const cc = pick === 1 ? c2 : pick === 2 ? c3 : c;
+      col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b;
+    }
+  }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
   g.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
@@ -243,12 +263,12 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: sphere(0.1), color: main, bone: 'earR', p: [-0.27, 1.14, -0.03], s: [1, 1, 0.7] },
       { geo: sphere(0.055), color: extra, bone: 'earL', p: [0.28, 1.15, 0.03], s: [1, 1, 0.5] },
       { geo: sphere(0.055), color: extra, bone: 'earR', p: [-0.28, 1.15, 0.03], s: [1, 1, 0.5] },
-      { geo: hemi(0.375), color: acc, bone: 'head', p: [0, 0.92, -0.01], s: [1.05, 0.9, 1.05] },
-      { geo: cyl(0.4, 0.4, 0.035, 20), color: acc, bone: 'head', p: [0, 0.93, 0.02] },
-      { geo: torus(0.07, 0.024), color: C.metalDark, bone: 'head', p: [0.11, 1.04, 0.35], r: [-0.35, 0, 0] },
-      { geo: torus(0.07, 0.024), color: C.metalDark, bone: 'head', p: [-0.11, 1.04, 0.35], r: [-0.35, 0, 0] },
-      { geo: sphere(0.062, 10, 8), color: C.glass, bone: 'head', p: [0.11, 1.04, 0.345], s: [1, 1, 0.4], r: [-0.35, 0, 0] },
-      { geo: sphere(0.062, 10, 8), color: C.glass, bone: 'head', p: [-0.11, 1.04, 0.345], s: [1, 1, 0.4], r: [-0.35, 0, 0] },
+      { geo: hemi(0.375), color: acc, bone: 'head', p: [0, 0.92, -0.01], s: [1.05, 0.9, 1.05], grp: 'hat' },
+      { geo: cyl(0.4, 0.4, 0.035, 20), color: acc, bone: 'head', p: [0, 0.93, 0.02], grp: 'hat' },
+      { geo: torus(0.07, 0.024), color: C.metalDark, bone: 'head', p: [0.11, 1.04, 0.35], r: [-0.35, 0, 0], grp: 'hat' },
+      { geo: torus(0.07, 0.024), color: C.metalDark, bone: 'head', p: [-0.11, 1.04, 0.35], r: [-0.35, 0, 0], grp: 'hat' },
+      { geo: sphere(0.062, 10, 8), color: C.glass, bone: 'head', p: [0.11, 1.04, 0.345], s: [1, 1, 0.4], r: [-0.35, 0, 0], grp: 'hat' },
+      { geo: sphere(0.062, 10, 8), color: C.glass, bone: 'head', p: [-0.11, 1.04, 0.345], s: [1, 1, 0.4], r: [-0.35, 0, 0], grp: 'hat' },
       { geo: box(0.3, 0.3, 0.16), color: det, bone: 'body', p: [0, 0.46, -0.25] },
       { geo: cyl(0.1, 0.1, 0.28, 14), color: acc, bone: 'body', p: [0, 0.62, -0.26], r: [0, 0, Math.PI / 2] },
       { geo: cyl(0.07, 0.08, 0.34, 12), color: C.metal, bone: 'weapon', p: wp(0, 0.02, 0.08), r: [Math.PI / 2, 0, 0] },
@@ -264,26 +284,26 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: sphere(0.03, 8, 6), color: C.white, bone: 'head', p: [-0.05, 0.69, 0.33] },
       { geo: sphere(0.11), color: acc, bone: 'earL', p: [0.32, 0.97, 0], s: [0.55, 1, 0.45], r: [0, 0, 0.7] },
       { geo: sphere(0.11), color: acc, bone: 'earR', p: [-0.32, 0.97, 0], s: [0.55, 1, 0.45], r: [0, 0, -0.7] },
-      { geo: cyl(0.44, 0.44, 0.04, 22), color: acc, bone: 'head', p: [0, 1.12, -0.02], r: [-0.12, 0, 0], s: [1, 1, 0.92] },
-      { geo: cyl(0.21, 0.26, 0.22, 16), color: acc, bone: 'head', p: [0, 1.24, -0.03], r: [-0.12, 0, 0] },
-      { geo: cyl(0.265, 0.265, 0.05, 16), color: extra, bone: 'head', p: [0, 1.16, -0.02], r: [-0.12, 0, 0] },
-      ...boogieApron(pal),
+      { geo: cyl(0.44, 0.44, 0.04, 22), color: acc, bone: 'head', p: [0, 1.12, -0.02], r: [-0.12, 0, 0], s: [1, 1, 0.92], grp: 'hat' },
+      { geo: cyl(0.21, 0.26, 0.22, 16), color: acc, bone: 'head', p: [0, 1.24, -0.03], r: [-0.12, 0, 0], grp: 'hat' },
+      { geo: cyl(0.265, 0.265, 0.05, 16), color: extra, bone: 'head', p: [0, 1.16, -0.02], r: [-0.12, 0, 0], grp: 'hat' },
+      ...boogieApron(pal).map((p): PartSpec => ({ ...p, grp: 'top' })),
       { geo: cyl(0.035, 0.035, 0.42, 8), color: C.metal, bone: 'weapon', p: wp(0.035, 0.03, 0.18), r: [Math.PI / 2, 0, 0] },
       { geo: cyl(0.035, 0.035, 0.42, 8), color: C.metal, bone: 'weapon', p: wp(-0.035, 0.03, 0.18), r: [Math.PI / 2, 0, 0] },
       { geo: box(0.1, 0.11, 0.22), color: C.wood, bone: 'weapon', p: wp(0, -0.01, -0.06) },
     ];
     case 'popo': return [
       ...baseParts(pal, { muzzle: null, noArms: true }),
-      { geo: sphere(0.22), color: det, bone: 'body', p: [0, 0.4, 0.12], s: [1, 1.1, 0.62] },
+      { geo: sphere(0.22), color: det, bone: 'body', p: [0, 0.4, 0.12], s: [1, 1.1, 0.62], grp: 'top' },
       { geo: sphere(0.3, 18, 12), color: det, bone: 'head', p: [0, 0.8, 0.16], s: [1.02, 0.78, 0.66] },
       { geo: cone(0.06, 0.13, 10), color: extra, bone: 'head', p: [0, 0.8, 0.39], r: [Math.PI / 2, 0, 0], s: [1.2, 1, 0.8] },
       { geo: sphere(0.14), color: main, bone: 'armL', p: [0.31, 0.42, 0], s: [0.32, 1, 0.62], r: [0, 0, 0.45] },
       { geo: sphere(0.14), color: main, bone: 'armR', p: [-0.31, 0.42, 0], s: [0.32, 1, 0.62], r: [0, 0, -0.45] },
-      { geo: hemi(0.38), color: acc, bone: 'head', p: [0, 0.94, -0.01], s: [1.04, 0.85, 1.04] },
-      { geo: cyl(0.42, 0.42, 0.03, 20), color: acc, bone: 'head', p: [0, 0.95, 0.03], s: [1, 1, 1.05] },
-      { geo: cyl(0.07, 0.07, 0.06, 10), color: C.white, bone: 'head', p: [0, 1.17, 0.27], r: [1.1, 0, 0] },
-      { geo: sphere(0.09), color: extra, bone: 'legL', p: [0.12, 0.04, 0.07], s: [1.1, 0.5, 1.5] },
-      { geo: sphere(0.09), color: extra, bone: 'legR', p: [-0.12, 0.04, 0.07], s: [1.1, 0.5, 1.5] },
+      { geo: hemi(0.38), color: acc, bone: 'head', p: [0, 0.94, -0.01], s: [1.04, 0.85, 1.04], grp: 'hat' },
+      { geo: cyl(0.42, 0.42, 0.03, 20), color: acc, bone: 'head', p: [0, 0.95, 0.03], s: [1, 1, 1.05], grp: 'hat' },
+      { geo: cyl(0.07, 0.07, 0.06, 10), color: C.white, bone: 'head', p: [0, 1.17, 0.27], r: [1.1, 0, 0], grp: 'hat' },
+      { geo: sphere(0.09), color: extra, bone: 'legL', p: [0.12, 0.04, 0.07], s: [1.1, 0.5, 1.5], grp: 'shoes' },
+      { geo: sphere(0.09), color: extra, bone: 'legR', p: [-0.12, 0.04, 0.07], s: [1.1, 0.5, 1.5], grp: 'shoes' },
       { geo: sphere(0.1), color: C.metalDark, bone: 'weapon', p: wp(0.0, 0.0, 0.0) },
       { geo: torus(0.035, 0.012), color: C.gold, bone: 'weapon', p: wp(0, 0.11, 0) },
     ];
@@ -300,7 +320,7 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: sphere(0.17, 14, 10), color: main, bone: 'tail', p: [0, 0.42, -0.42], s: [0.85, 0.85, 1.7], r: [0.7, 0, 0] },
       { geo: sphere(0.12, 12, 8), color: det, bone: 'tail', p: [0, 0.6, -0.6], s: [0.9, 0.9, 1.2], r: [0.7, 0, 0] },
       { geo: cone(0.36, 0.5, 5), color: extra, bone: 'cape', p: [0, 0.42, -0.06], r: [0.12, Math.PI / 5, 0], s: [1, 1, 0.75] },
-      { geo: new THREE.OctahedronGeometry(0.07), color: acc, bone: 'body', p: [0, 0.6, 0.24], s: [1, 1, 0.5] },
+      { geo: new THREE.OctahedronGeometry(0.07), color: acc, bone: 'body', p: [0, 0.6, 0.24], s: [1, 1, 0.5], grp: 'necklace' },
       { geo: box(0.06, 0.07, 0.38), color: C.wood, bone: 'weapon', p: wp(0, 0, 0.1) },
       { geo: torus(0.2, 0.025, Math.PI), color: acc, bone: 'weapon', p: wp(0, 0.0, 0.26), r: [Math.PI / 2, 0, 0] },
       { geo: new THREE.OctahedronGeometry(0.05), color: acc, bone: 'weapon', p: wp(0, 0, 0.32) },
@@ -312,10 +332,10 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: sphere(0.11), color: main, bone: 'earR', p: [-0.37, 0.88, 0], s: [0.6, 1, 1] },
       { geo: sphere(0.06), color: det, bone: 'earL', p: [0.4, 0.88, 0.02], s: [0.5, 1, 1] },
       { geo: sphere(0.06), color: det, bone: 'earR', p: [-0.4, 0.88, 0.02], s: [0.5, 1, 1] },
-      { geo: hemi(0.33), color: '#E8D2A6', bone: 'head', p: [0, 1.0, -0.02], s: [1.05, 0.75, 1.05] },
-      { geo: cyl(0.43, 0.43, 0.03, 20), color: '#E8D2A6', bone: 'head', p: [0, 1.0, 0] },
-      { geo: cyl(0.335, 0.335, 0.05, 18), color: extra, bone: 'head', p: [0, 1.03, -0.02] },
-      { geo: cyl(0.25, 0.27, 0.12, 14), color: '#E8D2A6', bone: 'hips', p: [0, 0.27, 0] },
+      { geo: hemi(0.33), color: '#E8D2A6', bone: 'head', p: [0, 1.0, -0.02], s: [1.05, 0.75, 1.05], grp: 'hat' },
+      { geo: cyl(0.43, 0.43, 0.03, 20), color: '#E8D2A6', bone: 'head', p: [0, 1.0, 0], grp: 'hat' },
+      { geo: cyl(0.335, 0.335, 0.05, 18), color: extra, bone: 'head', p: [0, 1.03, -0.02], grp: 'hat' },
+      { geo: cyl(0.25, 0.27, 0.12, 14), color: '#E8D2A6', bone: 'hips', p: [0, 0.27, 0], grp: 'pants' },
       { geo: torus(0.17, 0.04, Math.PI * 1.4), color: main, bone: 'tail', p: [0, 0.48, -0.36], r: [0, Math.PI / 2, 0.4] },
       { geo: cone(0.07, 0.12, 8), color: det, bone: 'tail', p: [0.05, 0.64, -0.42], r: [0, 0, -1.4] },
       { geo: cone(0.07, 0.12, 8), color: det, bone: 'tail', p: [-0.05, 0.64, -0.42], r: [0, 0, 1.4] },
@@ -352,12 +372,15 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
 }
 
 const geoCache = new Map<string, THREE.BufferGeometry>();
-function characterGeometry(id: CharacterId, palette: string[]) {
-  const key = id + palette.join();
+function characterGeometry(id: CharacterId, palette: string[], items: string[] = []) {
+  const outfit = [...items].sort();
+  const key = id + palette.join() + '|' + outfit.join(',');
   let g = geoCache.get(key);
   if (!g) {
     const list: Baked[] = [];
-    for (const spec of characterParts(id, palette)) bake(spec, list);
+    const worn = slotsOf(outfit);
+    const specs = characterParts(id, palette).filter((p) => !p.grp || !worn.has(p.grp)).concat(outfitParts(id, outfit));
+    for (const spec of specs) bake(spec, list);
     bakeOcclusion(list);
     g = mergeGeometries(list.map((b) => b.g), false)!;
     g.computeBoundingSphere();
@@ -456,8 +479,8 @@ export class ChibiModel {
   onStep?: () => void;
   onLand?: () => void;
 
-  constructor(readonly charId: CharacterId, palette: string[], outlineColor?: THREE.ColorRepresentation) {
-    const geo = characterGeometry(charId, palette);
+  constructor(readonly charId: CharacterId, palette: string[], outlineColor?: THREE.ColorRepresentation, readonly items: string[] = []) {
+    const geo = characterGeometry(charId, palette, items);
     this.material = toonMaterial({ vertexColors: true, rim: 0.5, spec: 0.38, specMask: true, shadowTint: '#B7A6E6' });
     this.mesh = new THREE.SkinnedMesh(geo, this.material);
     // fine coloured line art: each part's own colour darkened, weight per part, smoothed hull normals

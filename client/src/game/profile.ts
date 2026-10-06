@@ -45,6 +45,8 @@ export interface Profile {
   settings: Settings;
   tutorialDone: boolean;
   mapId: MapId | 'random';
+  /** last time progress was synced with the account (ms) */
+  progressAt?: number;
   autoQuality?: 'low' | 'medium' | 'high';
 }
 

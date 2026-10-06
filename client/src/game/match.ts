@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  World, buildMap, CHAR_BY_ID, weaponOf, superOf, CHARACTERS, type GameEvent, type Fighter, type PlayerSlot, type CharacterId, type MapId,
+  World, buildMap, CHAR_BY_ID, ITEMS, SLOTS, weaponOf, superOf, CHARACTERS, type GameEvent, type Fighter, type PlayerSlot, type CharacterId, type MapId,
 } from '@pastel/shared';
 import { Environment, type TimeOfDay } from '../render/environment';
 import { themeFor } from '../render/themes';
@@ -33,7 +33,7 @@ export interface MatchResult {
   mvpId: string;
 }
 
-export interface MatchOptions { mode: 'ffa' | 'tutorial'; charId: CharacterId; skin: string; nickname: string; difficulty: 0 | 1 | 2; mapId: MapId }
+export interface MatchOptions { mode: 'ffa' | 'tutorial'; charId: CharacterId; skin: string; nickname: string; difficulty: 0 | 1 | 2; mapId: MapId; items?: string[] }
 
 const SFX_FOR: Record<string, Sfx> = { bullet: 'gatling', pellet: 'shotgun', arc: 'throw', arrow: 'bow', boomerang: 'boomerang', bubble: 'bubble' };
 const SUPER_SFX: Record<string, Sfx> = { gatling: 'superGatling', bigbang: 'superBigbang', megabomb: 'superMegabomb', meteor: 'superMeteor', tornado: 'superTornado', prison: 'superPrison' };
@@ -114,7 +114,8 @@ export class Match {
     for (const f of this.world.fighters) {
       const def = CHAR_BY_ID[f.charId];
       const skin = def.skins.find((s) => s.id === f.skin) ?? def.skins[0];
-      const m = new ChibiModel(f.charId, skin.palette);
+      // local player wears their saved outfit; bots get a random cute outfit for variety
+      const m = new ChibiModel(f.charId, skin.palette, undefined, f.id === this.localId ? opts.items ?? [] : this.botOutfit(f.slot));
       m.group.scale.setScalar(CHAR_VISUAL_SCALE);
       m.onStep = () => {
         if (!m.group.visible) return;
@@ -147,6 +148,18 @@ export class Match {
     controls.setVisible(true);
     controls.onScoreboard = (s) => this.hud.scoreboard(s);
     controls.onEmoteWheel = (s) => { if (s) this.hud.emoteWheel(true); };
+  }
+
+  private botOutfit(seed: number) {
+    let x = (seed * 9301 + this.world.cfg.seed) % 233280;
+    const rnd = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
+    const out: string[] = [];
+    for (const sl of SLOTS) {
+      if (rnd() > 0.38) continue;
+      const pool = ITEMS.filter((i) => i.slot === sl && i.price < 40000);
+      out.push(pool[Math.floor(rnd() * pool.length)].id);
+    }
+    return out;
   }
 
   private setupTutorial() {

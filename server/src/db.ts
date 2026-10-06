@@ -1,5 +1,6 @@
 import { createClient, type Client } from '@libsql/client';
 import { mkdirSync } from 'node:fs';
+import { ITEMS } from '@pastel/shared';
 
 /**
  * Turso (libSQL) connection.
@@ -15,21 +16,83 @@ export function connect(): Client {
   return createClient({ url: 'file:data/local.db' });
 }
 
+/**
+ * Schema
+ *  users            account, password hash, available gold + lifetime earned/spent, stats, synced progress
+ *  sessions         login sessions (only a SHA-256 of the bearer token is stored)
+ *  gold_ledger      every gold movement (+ rewards / grants, − purchases) with the balance after it
+ *  purchases        shop purchase history
+ *  user_items       owned cosmetics (inventory)
+ *  user_equipment   what each brawler wears, per account / character / slot
+ *  game_results     match history of logged-in players (leaderboard source)
+ *  shop_items       catalogue mirror (synced from code at boot, for reporting / admin)
+ *  players, match_results   legacy anonymous (device-id) results from guests
+ */
 const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS players (
-    id TEXT PRIMARY KEY,
-    nickname TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
+  `CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    username_lc TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    password_salt TEXT NOT NULL,
+    gold INTEGER NOT NULL DEFAULT 0 CHECK (gold >= 0),
+    total_earned INTEGER NOT NULL DEFAULT 0,
+    total_spent INTEGER NOT NULL DEFAULT 0,
     games INTEGER NOT NULL DEFAULT 0,
     wins INTEGER NOT NULL DEFAULT 0,
     kills INTEGER NOT NULL DEFAULT 0,
-    total_score INTEGER NOT NULL DEFAULT 0,
-    best_score INTEGER NOT NULL DEFAULT 0
+    best_score INTEGER NOT NULL DEFAULT 0,
+    progress_json TEXT,
+    role TEXT NOT NULL DEFAULT 'player',
+    created_at INTEGER NOT NULL,
+    last_login_at INTEGER
   )`,
-  `CREATE TABLE IF NOT EXISTS match_results (
+  `CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    user_agent TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
+  `CREATE TABLE IF NOT EXISTS gold_ledger (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    player_id TEXT NOT NULL REFERENCES players(id),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    delta INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    reason TEXT NOT NULL,           -- signup_bonus | match_reward | purchase | admin_grant
+    ref_type TEXT,                  -- game_result | item
+    ref_id TEXT,
+    memo TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_ledger_user ON gold_ledger(user_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL,
+    price INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_purchases_user ON purchases(user_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS user_items (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL,
+    acquired_at INTEGER NOT NULL,
+    source TEXT NOT NULL DEFAULT 'shop',
+    PRIMARY KEY (user_id, item_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS user_equipment (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    character_id TEXT NOT NULL,
+    slot TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, character_id, slot)
+  )`,
+  `CREATE TABLE IF NOT EXISTS game_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     character_id TEXT NOT NULL,
     map_id TEXT NOT NULL,
     place INTEGER NOT NULL,
@@ -37,15 +100,43 @@ const SCHEMA = [
     assists INTEGER NOT NULL,
     damage INTEGER NOT NULL,
     score INTEGER NOT NULL,
+    gold_earned INTEGER NOT NULL DEFAULT 0,
     duration_ms INTEGER NOT NULL,
+    equipment_json TEXT,
     created_at INTEGER NOT NULL
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_results_score ON match_results(score DESC)`,
-  `CREATE INDEX IF NOT EXISTS idx_results_created ON match_results(created_at)`,
-  `CREATE INDEX IF NOT EXISTS idx_results_player ON match_results(player_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_game_results_score ON game_results(score DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_game_results_user ON game_results(user_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_game_results_created ON game_results(created_at)`,
+  `CREATE TABLE IF NOT EXISTS shop_items (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    slot TEXT NOT NULL,
+    name TEXT NOT NULL,
+    price INTEGER NOT NULL,
+    rarity TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1
+  )`,
+  // legacy guest tables
+  `CREATE TABLE IF NOT EXISTS players (
+    id TEXT PRIMARY KEY, nickname TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    games INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0, kills INTEGER NOT NULL DEFAULT 0,
+    total_score INTEGER NOT NULL DEFAULT 0, best_score INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE TABLE IF NOT EXISTS match_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, player_id TEXT NOT NULL REFERENCES players(id), character_id TEXT NOT NULL,
+    map_id TEXT NOT NULL, place INTEGER NOT NULL, kills INTEGER NOT NULL, assists INTEGER NOT NULL, damage INTEGER NOT NULL,
+    score INTEGER NOT NULL, duration_ms INTEGER NOT NULL, created_at INTEGER NOT NULL
+  )`,
 ];
 
 /** Idempotent: safe to run on every boot. */
 export async function migrate(db: Client) {
   await db.batch(SCHEMA, 'write');
+  // keep the catalogue mirror in sync with the code
+  await db.batch(ITEMS.map((it) => ({
+    sql: `INSERT INTO shop_items (id, kind, slot, name, price, rarity, active) VALUES (?, ?, ?, ?, ?, ?, 1)
+          ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, slot = excluded.slot, name = excluded.name, price = excluded.price, rarity = excluded.rarity, active = 1`,
+    args: [it.id, it.kind, it.slot, it.name, it.price, it.rarity],
+  })), 'write');
 }

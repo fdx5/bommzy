@@ -82,11 +82,11 @@ export class LobbyScene {
     this.camera.updateProjectionMatrix();
   }
 
-  setHero(id: CharacterId, palette: string[]) {
-    const key = palette.join();
+  setHero(id: CharacterId, palette: string[], items: string[] = []) {
+    const key = palette.join() + '|' + [...items].sort().join(',');
     if (this.heroId === id && this.heroSkin === key) return;
     if (this.hero) { this.platform.remove(this.hero.group); this.hero.dispose(); }
-    this.hero = new ChibiModel(id, palette);
+    this.hero = new ChibiModel(id, palette, undefined, items);
     this.hero.group.scale.setScalar(1.35);
     this.platform.add(this.hero.group);
     this.heroId = id; this.heroSkin = key;
