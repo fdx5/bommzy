@@ -76,7 +76,7 @@ export class Controls {
     this.el.moveZone = mk('tc-move-zone');
     this.el.moveBase = mk('tc-stick tc-move-base', '<div class="tc-knob"></div>');
     this.el.attack = mk('tc-btn tc-attack', '<div class="tc-ring"></div><div class="tc-knob"></div><span class="tc-ico">🎯</span>');
-    this.el.super = mk('tc-btn tc-super', '<svg class="tc-gauge" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="bg"/><circle cx="50" cy="50" r="44" class="fg"/></svg><div class="tc-knob"></div><span class="tc-ico">⭐</span>');
+    this.el.super = mk('tc-btn tc-super', '<svg class="tc-gauge" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="bg"/><circle cx="50" cy="50" r="44" class="fg"/></svg><div class="tc-knob"></div><span class="tc-ico">⭐</span><b class="tc-count tc-stock"></b>');
     this.el.gadget = mk('tc-btn tc-gadget', '<span class="tc-ico">✨</span><b class="tc-count">3</b>');
     this.el.emote = mk('tc-btn tc-emote', '<span class="tc-ico">😊</span>');
     this.el.moveBase.style.opacity = '0';
@@ -206,10 +206,15 @@ export class Controls {
 
   vibrate(ms: number | number[]) { if (this.settings.vibration && navigator.vibrate) try { navigator.vibrate(ms); } catch { /* ignore */ } }
 
-  setSuperState(charge: number, ready: boolean) {
+  setSuperState(charge: number, ready: boolean, stock = 0) {
     const fg = this.el.super.querySelector('.fg') as SVGCircleElement;
     fg.style.strokeDashoffset = `${276.5 * (1 - charge)}`;
     this.el.super.classList.toggle('ready', ready);
+    // total supers available right now: the full gauge + banked ones
+    const badge = this.el.super.querySelector('.tc-stock') as HTMLElement;
+    const txt = stock > 0 ? `×${stock + 1}` : '';
+    if (badge.textContent !== txt) badge.textContent = txt;
+    badge.classList.toggle('on', stock > 0);
   }
   setGadgetState(uses: number, cooling: boolean) {
     (this.el.gadget.querySelector('.tc-count') as HTMLElement).textContent = String(uses);

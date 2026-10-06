@@ -23,6 +23,8 @@ export interface MatchConfig {
 }
 
 export const RULES = {
+  /** FFA match length; the half-speed cloud needs ~4 minutes to close on a long match */
+  matchDurationMs: 240000,
   regenDelayMs: 3000,
   regenPerSec: 0.13,
   inputBufferMs: 100,
@@ -37,12 +39,19 @@ export const RULES = {
   poisonEarlyMs: 60000,
   poisonEarlyRadius: 42,
   poisonFinal: 2,
+  /** global multiplier on how fast the cloud closes in (0.5 = half speed) */
+  poisonShrinkRate: 0.5,
   gadgetUses: 3,
   gadgetCooldownMs: 5000,
   assistWindowMs: 5000,
   crateHp: 2600,
   supplyHp: 3600,
   healFlower: 1200,
+  /** chance a broken crate also drops a super pickup (supply crates: higher) */
+  superDropChance: 0.3,
+  supplySuperDropChance: 0.75,
+  /** banked supers on top of a full gauge */
+  superStockMax: 5,
   accelTime: 0.08,
   decelTime: 0.05,
   iceAccelTime: 0.55,
@@ -118,7 +127,7 @@ export class World {
       aimAngle: face, moveAngle: face,
       hp: def.hp, baseHp: def.hp, maxHp: def.hp, alive: true, retiredAt: -1, killedBy: null, place: 0,
       ammo: 3, reloadT: 0, fireCd: 0, fireBufferUntil: -1, burstLeft: 0, burstT: 0, burstAngle: 0, lastAttackAt: -1e9,
-      superCharge: 0, superUntil: 0, superNextShot: 0, superKind: null, tornadoHits: {},
+      superCharge: 0, superStock: 0, superUntil: 0, superNextShot: 0, superKind: null, tornadoHits: {},
       gadgetUses: RULES.gadgetUses, gadgetCd: 0, shieldUntil: 0, dashUntil: 0, dashVx: 0, dashVy: 0,
       slowUntil: 0, slowAmount: 0, stunUntil: 0, lastCombatAt: -1e9, lastHitAt: -1e9, attackers: {},
       inBush: -1, hiddenSince: 0, revealedUntil: 0,
@@ -427,7 +436,8 @@ export class World {
 
   private castSuper(f: Fighter, def: CharacterDef, angle: number, aimDist: number) {
     const sd = superOf(def), w = weaponOf(def);
-    f.superCharge = 0; f.superUses++; this.stats.superUses++;
+    if (f.superStock > 0) f.superStock--; else f.superCharge = 0;
+    f.superUses++; this.stats.superUses++;
     f.lastAttackAt = this.time; f.lastCombatAt = this.time;
     f.aimAngle = angle;
     this.reveal(f, BUSH.revealAfterAttackMs);
@@ -750,7 +760,7 @@ export class World {
       if (aid === killer?.id || this.time - t > RULES.assistWindowMs) continue;
       const a = this.byId.get(aid); if (a) a.assists++;
     }
-    victim.cubes = 0;
+    victim.cubes = 0; victim.superStock = 0;
     this.events.push({ type: 'kill', killer: killer?.id ?? null, victim: victim.id, place: victim.place, bounty, inBush: !!killer && killer.inBush >= 0 });
     this.updateCrown();
   }
@@ -786,6 +796,11 @@ export class World {
         const a = (i / Math.max(1, o.cubes)) * Math.PI * 2 + this.rng.next();
         const off = o.cubes > 1 ? 0.9 : 0;
         this.spawnPickup('cube', o.x + Math.cos(a) * off, o.y + Math.sin(a) * off);
+      }
+      const supply = o.cubes > 1;
+      if (this.rng.next() < (supply ? RULES.supplySuperDropChance : RULES.superDropChance)) {
+        const a = this.rng.range(0, Math.PI * 2);
+        this.spawnPickup('super', o.x + Math.cos(a) * 0.7, o.y + Math.sin(a) * 0.7);
       }
     }
   }
@@ -846,8 +861,12 @@ export class World {
         if (!f.alive) continue;
         if (Math.hypot(f.x - p.x, f.y - p.y) > CHAR_BY_ID[f.charId].hitboxRadius + 0.55) continue;
         if (p.kind === 'heal' && f.hp >= f.maxHp) continue;
+        if (p.kind === 'super' && f.superCharge >= 1 && f.superStock >= RULES.superStockMax) continue;
         p.taken = true;
-        if (p.kind === 'cube') {
+        if (p.kind === 'super') {
+          if (f.superCharge < 1) { f.superCharge = 1; this.events.push({ type: 'superReady', id: f.id }); }
+          else f.superStock++;
+        } else if (p.kind === 'cube') {
           f.cubes++;
           f.maxHp = f.baseHp * (1 + RULES.cubeBonus * f.cubes);
           f.hp += f.baseHp * RULES.cubeBonus;
@@ -856,7 +875,7 @@ export class World {
           f.hp += amt;
           this.events.push({ type: 'heal', target: f.id, amount: Math.round(amt), x: f.x, y: f.y });
         }
-        this.events.push({ type: 'pickup', id: f.id, pickupId: p.id, kind: p.kind, x: p.x, y: p.y });
+        this.events.push({ type: 'pickup', id: f.id, pickupId: p.id, kind: p.kind, x: p.x, y: p.y, stock: f.superStock });
         break;
       }
     }
@@ -889,7 +908,7 @@ export class World {
       this.events.push({ type: 'poisonStart' });
     }
     const speed = alive <= 2 ? 3 : alive <= 3 ? 2 : 1;
-    this.poisonProgress = Math.min(1.25, this.poisonProgress + ((dt * 1000) / (RULES.poisonEndMs - RULES.poisonStartMs)) * speed);
+    this.poisonProgress = Math.min(1.25, this.poisonProgress + ((dt * 1000) / (RULES.poisonEndMs - RULES.poisonStartMs)) * speed * RULES.poisonShrinkRate);
     const k = this.poisonProgress;
     this.poisonRadius = k <= 1
       ? RULES.poisonFrom + (RULES.poisonTo - RULES.poisonFrom) * k

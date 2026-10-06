@@ -37,9 +37,9 @@ describe.each(MAPS.map((m) => [m.id]))('map %s', (id) => {
   });
   it('plays a full 8-bot match to the end', () => {
     const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS.slice(0, 2)).map((c, i) => ({ id: 'b' + i, name: 'b' + i, charId: c.id, isBot: true, difficulty: 1 }));
-    const w = new World(buildMap(id), { mode: 'ffa', durationMs: 180000, seed: 5, players, poison: true, mapEvents: true, countdownMs: 0 });
+    const w = new World(buildMap(id), { mode: 'ffa', durationMs: 240000, seed: 5, players, poison: true, mapEvents: true, countdownMs: 0 });
     let steps = 0;
-    while (w.phase !== 'ended' && steps < 20 * 200) { w.step(1 / 20); w.drainEvents(); steps++; }
+    while (w.phase !== 'ended' && steps < 20 * 260) { w.step(1 / 20); w.drainEvents(); steps++; }
     expect(w.phase).toBe('ended');
   });
 });
@@ -47,7 +47,7 @@ describe.each(MAPS.map((m) => [m.id]))('map %s', (id) => {
 describe('ice', () => {
   it('slides: keeps moving after input stops', () => {
     const m = buildMap('glacier');
-    const w = new World(m, { mode: 'ffa', durationMs: 180000, seed: 1, players: [{ id: 'a', name: 'a', charId: 'toto', isBot: false }, { id: 'z', name: 'z', charId: 'luna', isBot: false }], poison: false, mapEvents: false, countdownMs: 0 });
+    const w = new World(m, { mode: 'ffa', durationMs: 240000, seed: 1, players: [{ id: 'a', name: 'a', charId: 'toto', isBot: false }, { id: 'z', name: 'z', charId: 'luna', isBot: false }], poison: false, mapEvents: false, countdownMs: 0 });
     m.obstacles.forEach((o) => { o.alive = false; });
     const f = w.fighters[0];
     f.x = f.px = -5; f.y = f.py = 0; // central ice lake

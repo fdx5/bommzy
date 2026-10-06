@@ -84,6 +84,7 @@ export class Entities {
   private shadows: Pool;
   private cubes: Pool;
   private flowers: Pool;
+  private superStars: Pool;
   readonly aim: AimIndicator;
   private col = new THREE.Color();
   /** Last drawn position per projectile, for continuous tracers. */
@@ -93,7 +94,7 @@ export class Entities {
   constructor(scene: THREE.Scene, private vfx: VFX) {
     const basic = (c: string) => new THREE.MeshBasicMaterial({ color: c });
     const bulletGeo = new THREE.CapsuleGeometry(0.1, 0.28, 3, 8).rotateZ(Math.PI / 2);
-    this.bullets = new Pool(bulletGeo, basic('#FFFFFF'), 220, scene);
+    this.bullets = new Pool(bulletGeo, basic('#FFFFFF'), 220, scene, new THREE.InstancedMesh(bulletGeo, outlineMaterial('#8A4A00', 0.03), 220));
     const pelletGeo = new THREE.SphereGeometry(0.16, 10, 8);
     this.pellets = new Pool(pelletGeo, basic('#FFFFFF'), 120, scene, new THREE.InstancedMesh(pelletGeo, outlineMaterial('#7A2410', 0.045), 120));
     // two-tone arrow: white shaft, saturated sky-blue head, lemon star fletching (reads on pastel ground)
@@ -134,12 +135,22 @@ export class Entities {
       new THREE.SphereGeometry(0.14, 8, 6).translate(0, 0.05, 0),
     ])!;
     this.flowers = new Pool(flower, toonMaterial({ color: '#FFB3CF', rim: 0.6 }), 20, scene, new THREE.InstancedMesh(flower, outlineMaterial('#C0688E', 0.025), 20));
+    // super pickup: chunky golden star, lit from inside so it pops on every ground colour
+    const star = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + Math.PI / 2, r = i % 2 ? 0.17 : 0.4;
+      if (i === 0) star.moveTo(Math.cos(a) * r, Math.sin(a) * r); else star.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    star.closePath();
+    const starGeo = new THREE.ExtrudeGeometry(star, { depth: 0.14, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 2 }).translate(0, 0, -0.07);
+    starGeo.deleteAttribute('uv');
+    this.superStars = new Pool(starGeo, toonMaterial({ color: '#FFD84D', rim: 0.9, rimColor: '#FFFFFF', emissive: '#7A4E00' }), 20, scene, new THREE.InstancedMesh(starGeo, outlineMaterial('#B0640A', 0.035), 20));
     this.aim = new AimIndicator(scene);
   }
 
   update(world: World, alpha: number, dt: number, localId: string | null) {
     const t = world.time / 1000;
-    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers]) p.begin();
+    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars]) p.begin();
     this.trailT += dt;
     const doTrail = this.trailT > 0.03;
     if (doTrail) this.trailT = 0;
@@ -169,7 +180,14 @@ export class Entities {
       const bob = Math.sin(t * 3 + pk.id) * 0.12;
       const age = Math.min(1, (world.time - pk.spawnAt) / 300);
       const pop = age < 1 ? 1 + Math.sin(age * Math.PI) * 0.5 : 1;
-      if (pk.kind === 'cube') {
+      if (pk.kind === 'super') {
+        const throb = 1 + Math.sin(t * 8 + pk.id) * 0.08;
+        this.superStars.push(pk.x, 0.75 + bob * 1.4 + (1 - age) * 1.4, pk.y, pop * throb * 1.15, Math.sin(t * 2.2 + pk.id) * 0.6, -0.5, Math.sin(t * 2 + pk.id) * 0.25); // wobble, always facing the camera
+        if (doTrail) {
+          this.vfx.trail(pk.x, 0.75 + bob * 1.4, pk.y, '#FFE27A', 1.5, SHAPE.glow, 0.3);
+          if (Math.random() < 0.5) this.vfx.sparkle(pk.x, 0.8, pk.y, '#FFD84D', 1, 0.7);
+        }
+      } else if (pk.kind === 'cube') {
         this.cubes.push(pk.x, 0.55 + bob + (1 - age) * 1.2, pk.y, pop, t * 1.6 + pk.id, 0.5, 0.3);
         if (doTrail && Math.random() < 0.3) this.vfx.sparkle(pk.x, 0.6, pk.y, '#A8E6CF', 1, 0.5);
       } else {
@@ -195,7 +213,7 @@ export class Entities {
       }
     }
 
-    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers]) p.end();
+    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars]) p.end();
   }
 
   private ownerColor(world: World, p: Projectile) {
@@ -210,9 +228,12 @@ export class Entities {
     switch (p.kind) {
       case 'bullet': {
         const sup = p.isSuper;
-        this.col.set(sup ? '#FFC94D' : '#FFE27A');
-        this.bullets.push(x, 0.75, z, sup ? 1.5 : 1, -ang, 0, 0, this.col);
-        if (doTrail) this.vfx.trail(x, 0.75, z, sup ? '#FFD36B' : '#FFF5BA', sup ? 0.3 : 0.18);
+        this.col.set(sup ? '#FF8A1F' : '#FFC21F');
+        this.bullets.push(x, 0.75, z, sup ? 1.9 : 1.3, -ang, 0, 0, this.col);
+        const lb = this.lastPos.get(p.id);
+        if (lb) this.vfx.tracer(lb.x, lb.z, x, z, 0.75, sup ? '#FF9A2E' : '#FFD36B', sup ? 0.5 : 0.32, sup ? 0.2 : 0.14, 0.45);
+        this.lastPos.set(p.id, { x, z });
+        if (doTrail) this.vfx.trail(x, 0.75, z, sup ? '#FFB347' : '#FFE9A0', sup ? 0.55 : 0.3, SHAPE.glow, 0.12);
         break;
       }
       case 'pellet': {

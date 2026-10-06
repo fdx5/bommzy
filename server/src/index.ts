@@ -202,9 +202,9 @@ const ResultBody = z.object({
   place: z.number().int().min(1).max(8),
   kills: z.number().int().min(0).max(7),
   assists: z.number().int().min(0).max(7),
-  damage: z.number().int().min(0).max(80_000),
+  damage: z.number().int().min(0).max(110_000),
   score: z.number().int().min(0),
-  durationMs: z.number().int().min(10_000).max(200_000),
+  durationMs: z.number().int().min(10_000).max(260_000),
 });
 /** Upper bound of a legit score (kills incl. streak/bounty bonuses + assists + damage + placement). */
 const maxScore = (b: z.infer<typeof ResultBody>) => b.kills * 350 + b.assists * 40 + Math.ceil(b.damage * 0.05) + 300 + 50;

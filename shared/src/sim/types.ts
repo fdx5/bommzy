@@ -91,6 +91,7 @@ export interface Fighter {
   burstAngle: number;
   lastAttackAt: number;
   superCharge: number;     // 0..1
+  superStock: number;      // extra supers banked from super pickups (on top of a full gauge)
   superUntil: number;      // gatling / tornado active window
   superNextShot: number;
   superKind: SuperKind | null;
@@ -165,7 +166,8 @@ export interface Zone {
   done: boolean;
 }
 
-export interface Pickup { id: number; kind: 'cube' | 'heal'; x: number; y: number; spawnAt: number; taken: boolean }
+export type PickupKind = 'cube' | 'heal' | 'super';
+export interface Pickup { id: number; kind: PickupKind; x: number; y: number; spawnAt: number; taken: boolean }
 
 export interface BushState { alive: boolean; destroyedAt: number; regrowAt: number; withered: boolean }
 
@@ -187,8 +189,8 @@ export type GameEvent =
   | { type: 'obstacleDestroyed'; id: number; x: number; y: number; otype: ObstacleType }
   | { type: 'bushDestroyed'; id: number }
   | { type: 'bushRegrow'; id: number }
-  | { type: 'pickup'; id: string; pickupId: number; kind: 'cube' | 'heal'; x: number; y: number }
-  | { type: 'pickupSpawn'; pickupId: number; kind: 'cube' | 'heal'; x: number; y: number }
+  | { type: 'pickup'; id: string; pickupId: number; kind: PickupKind; x: number; y: number; stock?: number }
+  | { type: 'pickupSpawn'; pickupId: number; kind: PickupKind; x: number; y: number }
   | { type: 'superReady'; id: string }
   | { type: 'gadget'; id: string; kind: string; x: number; y: number }
   | { type: 'hide'; id: string; x: number; y: number }

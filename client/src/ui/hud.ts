@@ -46,7 +46,7 @@ export class Hud {
       </div>
       <div class="hud-bottom ${touch ? 'hidden' : ''}">
         <div class="chip gadget-pc" data-k="gadget">✨ ×3 <span class="keyhint">Space</span></div>
-        <div class="super-pc"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="bg"/><circle cx="50" cy="50" r="44" class="fg" style="stroke-dashoffset:276.5"/></svg><span>⭐</span></div>
+        <div class="super-pc"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="bg"/><circle cx="50" cy="50" r="44" class="fg" style="stroke-dashoffset:276.5"/></svg><span>⭐</span><b class="stock"></b></div>
         <div class="keyhint">${t('controlsPc')}</div>
       </div>
       <div class="banners"></div>
@@ -112,7 +112,7 @@ export class Hud {
       const r = w.poisonRadius * k, c = size / 2;
       g.fillRect(0, 0, size, c - r); g.fillRect(0, c + r, size, size); g.fillRect(0, c - r, c - r, r * 2); g.fillRect(c + r, c - r, size, r * 2);
     }
-    for (const p of w.pickups) { g.fillStyle = p.kind === 'cube' ? '#3FBF8F' : '#FF8FB8'; g.fillRect((p.x + half) * k - 2, (p.y + half) * k - 2, 4, 4); }
+    for (const p of w.pickups) { g.fillStyle = p.kind === 'cube' ? '#3FBF8F' : p.kind === 'super' ? '#FFC400' : '#FF8FB8'; g.fillRect((p.x + half) * k - 2, (p.y + half) * k - 2, 4, 4); }
     for (const f of w.fighters) {
       if (!f.alive) continue;
       const me = f.id === viewer?.id;
@@ -180,6 +180,9 @@ export class Hud {
     const fg = this.el.superPc.querySelector('.fg') as SVGCircleElement;
     fg.style.strokeDashoffset = String(276.5 * (1 - me.superCharge));
     this.el.superPc.classList.toggle('ready', me.superCharge >= 1);
+    const stock = me.superStock > 0 ? `×${me.superStock + 1}` : '';
+    const sb = this.el.superPc.querySelector('.stock') as HTMLElement;
+    if (sb.textContent !== stock) sb.textContent = stock;
     this.setText('gadget', `✨ ×${me.gadgetUses}`, true);
     this.el.hurt.classList.toggle('on', me.alive && me.hp / me.maxHp < 0.3);
     this.el.poison.classList.toggle('on', !!viewer && viewer.alive && w.inPoison(viewer.x, viewer.y));

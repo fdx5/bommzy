@@ -7,7 +7,7 @@ import {
 const DT = 1 / 60;
 
 function makeWorld(players: PlayerSlot[], extra: Partial<MatchConfig> = {}) {
-  return new World(buildMeadow(), { mode: 'ffa', durationMs: 180000, seed: 3, players, poison: false, mapEvents: false, countdownMs: 0, ...extra });
+  return new World(buildMeadow(), { mode: 'ffa', durationMs: 240000, seed: 3, players, poison: false, mapEvents: false, countdownMs: 0, ...extra });
 }
 const human = (id: string, charId: PlayerSlot['charId'] = 'toto'): PlayerSlot => ({ id, name: id, charId, isBot: false });
 
@@ -122,6 +122,25 @@ describe('weapons', () => {
     }
   });
 
+  it('super pickups fill the gauge, then bank extra supers', () => {
+    const { w, fa } = duel('luna', 'toto', 30);
+    const grab = () => {
+      w.pickups.push({ id: 9000 + w.pickups.length, kind: 'super', x: fa.x, y: fa.y, spawnAt: -1000, taken: false });
+      w.step(DT);
+    };
+    grab();
+    expect(fa.superCharge).toBe(1); expect(fa.superStock).toBe(0);
+    grab(); grab();
+    expect(fa.superStock).toBe(2);
+    const cast = () => {
+      w.setInput('a', { ...emptyInput(), aimY: 1, aimDist: 8, superFire: true }); // away from b so the match keeps going
+      for (let i = 0; i < 120; i++) { w.step(DT); w.setInput('a', { ...emptyInput() }); }
+    };
+    cast(); expect(fa.superStock).toBe(1); expect(fa.superCharge).toBe(1);
+    cast(); cast();
+    expect(fa.superUses).toBe(3); expect(fa.superStock).toBe(0); expect(fa.superCharge).toBe(0);
+  });
+
   it('boomerang hits on the way out and back', () => {
     const { w, fb } = duel('kiki', 'boogie', 5);
     w.setInput('a', { ...emptyInput(), aimX: 1, fire: true });
@@ -214,9 +233,9 @@ describe('bush stealth (4-1)', () => {
 describe('full bot match', () => {
   it('8 bots finish a match with poison in reasonable time', () => {
     const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS.slice(0, 2)).map((c, i) => ({ id: 'b' + i, name: 'Bot' + i, charId: c.id, isBot: true, difficulty: 1 }));
-    const w = new World(buildMeadow(), { mode: 'ffa', durationMs: 180000, seed: 11, players, poison: true, mapEvents: true, countdownMs: 0 });
+    const w = new World(buildMeadow(), { mode: 'ffa', durationMs: 240000, seed: 11, players, poison: true, mapEvents: true, countdownMs: 0 });
     let steps = 0;
-    while (w.phase !== 'ended' && steps < 60 * 200) { w.step(DT); w.drainEvents(); steps++; }
+    while (w.phase !== 'ended' && steps < 60 * 260) { w.step(DT); w.drainEvents(); steps++; }
     expect(w.phase).toBe('ended');
     expect(w.ranking.map((r) => r.place).sort()).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(w.stats.kills).toBeGreaterThanOrEqual(3);

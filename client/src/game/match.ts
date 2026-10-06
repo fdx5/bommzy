@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  World, buildMap, CHAR_BY_ID, ITEMS, SLOTS, weaponOf, superOf, CHARACTERS, type GameEvent, type Fighter, type PlayerSlot, type CharacterId, type MapId,
+  World, RULES, buildMap, CHAR_BY_ID, ITEMS, SLOTS, weaponOf, superOf, CHARACTERS, type GameEvent, type Fighter, type PlayerSlot, type CharacterId, type MapId,
 } from '@pastel/shared';
 import { Environment, type TimeOfDay } from '../render/environment';
 import { themeFor } from '../render/themes';
@@ -100,7 +100,7 @@ export class Match {
       players.splice(Math.floor(Math.random() * 8), 0, me);
     }
     this.world = new World(buildMap(opts.mode === 'tutorial' ? 'meadow' : opts.mapId), {
-      mode: opts.mode, durationMs: 180000, seed, players, poison: opts.mode === 'ffa', mapEvents: opts.mode === 'ffa',
+      mode: opts.mode, durationMs: RULES.matchDurationMs, seed, players, poison: opts.mode === 'ffa', mapEvents: opts.mode === 'ffa',
       countdownMs: opts.mode === 'ffa' ? 3000 : 0,
     });
 
@@ -319,7 +319,7 @@ export class Match {
     this.env.update(dt, this.elapsed, w, this.focus, viewer.alive ? viewer.inBush : -1);
     this.entities.update(w, alpha, dt, this.viewerId);
     this.vfx.update(dt);
-    this.controls.setSuperState(me.superCharge, me.superCharge >= 1);
+    this.controls.setSuperState(me.superCharge, me.superCharge >= 1, me.superStock);
     this.controls.setGadgetState(me.gadgetUses, me.gadgetCd > 0);
     if (this.controls.pendingEmote >= 0) { w.emote(this.localId, this.controls.pendingEmote); this.controls.pendingEmote = -1; }
     this.hud.update(this.viewerId, this.stage.camera, alpha, dt, this.stage.renderer);
@@ -399,7 +399,7 @@ export class Match {
           const pal = CHAR_BY_ID[f.charId].colorPalette;
           if (vis) {
             switch (e.kind) {
-              case 'bullet': this.vfx.muzzle(e.x, e.y, e.angle, e.isSuper ? '#FFC94D' : '#FFE27A', e.isSuper); this.vfx.shell(e.x, e.y, e.angle); break;
+              case 'bullet': this.vfx.muzzle(e.x, e.y, e.angle, e.isSuper ? '#FF9A2E' : '#FFD36B', e.isSuper); this.vfx.gatlingFlash(e.x, e.y, e.angle, e.isSuper); this.vfx.shell(e.x, e.y, e.angle); break;
               case 'pellet': this.vfx.shotgunPuff(e.x, e.y, e.angle); this.vfx.muzzle(e.x, e.y, e.angle, '#FF9A4D', true); this.vfx.shell(e.x, e.y, e.angle, true); break;
               case 'arrow': this.vfx.bowSnap(e.x, e.y, e.angle); break;
               case 'boomerang': this.vfx.swoosh(e.x, e.y, e.angle); break;
@@ -423,12 +423,12 @@ export class Match {
           if (w.visible(this.viewerId, f) || me) {
             const pal = CHAR_BY_ID[f.charId].colorPalette;
             this.vfx.starPop(e.x, 1, e.y, pal.slice(0, 3));
-            this.vfx.shockRing(e.x, e.y, 2.2, pal[0], 0.35);
+            this.vfx.superBurst(e.x, e.y, pal[0], e.angle);
             if (e.kind === 'meteor') for (let i = 0; i < 6; i++) setTimeout(() => this.vfx.chargeGlow(f.x, f.y, '#FFE27A'), i * 50);
             if (e.kind === 'bigbang') this.vfx.shotgunPuff(e.x, e.y, e.angle);
           }
           if (me) {
-            this.stage.screenFlash(0.7, CHAR_BY_ID[f.charId].colorPalette[0]); this.stage.punch(0.14); this.stage.saturate(0.5);
+            this.stage.screenFlash(0.85, CHAR_BY_ID[f.charId].colorPalette[0]); this.stage.punch(0.18); this.stage.saturate(0.6); this.stage.shake(0.25);
             this.stage.kick(Math.cos(e.angle), Math.sin(e.angle), e.kind === 'bigbang' || e.kind === 'meteor' ? 0.5 : 0.15);
             this.controls.vibrate([20, 30, 40]);
           }
@@ -442,7 +442,10 @@ export class Match {
           const visibleT = meTgt || w.visible(this.viewerId, target);
           if (e.kind !== 'poison') {
             this.model(e.target)!.triggerHit(e.nx, e.ny, power);
-            if (visibleT || meAtt) this.vfx.impact(e.kind, e.x, e.y, ang, e.isSuper || e.crit);
+            if (visibleT || meAtt) {
+              this.vfx.impact(e.kind, e.x, e.y, ang, e.isSuper || e.crit);
+              if (e.isSuper) this.vfx.shockRing(e.x, e.y, 1.4, '#FFFFFF', 0.25);
+            }
             const imp = IMPACT_SFX[e.kind];
             if (imp && imp !== 'impExplosive') audio.play(imp, { x: e.x, z: e.y }, meAtt || meTgt ? 0.9 : 0.6);
           }
@@ -512,11 +515,12 @@ export class Match {
         case 'explode': {
           const pal: string[] = e.kind === 'prison' ? ['#FFFFFF', '#CFF1FF', '#FFC8DD', '#E9DEFF'] : e.kind === 'megabomb' ? ['#FFFFFF', '#FFE9C7', '#E9DEFF', '#FFC8DD'] : ['#FFFFFF', '#FFE3F0', '#F1EAFF'];
           this.vfx.explosion(e.x, e.y, e.r, pal);
+          if (e.r > 3) this.vfx.superBlast(e.x, e.y, e.r, pal[1]);
           if (e.kind === 'prison') { audio.play('impBubble', { x: e.x, z: e.y }, 1.2); audio.play('explode', { x: e.x, z: e.y }, 0.7); }
           else audio.play(e.r > 3 ? 'bigExplode' : 'explode', { x: e.x, z: e.y }, e.r > 3 ? 1.1 : 0.9);
           const d = Math.hypot(e.x - this.focus.x, e.y - this.focus.z);
-          this.stage.shake(Math.max(0, (e.r > 3 ? 0.6 : 0.25) * (1 - d / 16)));
-          if (e.r > 3 && d < 14) this.stage.screenFlash(0.25);
+          this.stage.shake(Math.max(0, (e.r > 3 ? 0.75 : 0.25) * (1 - d / 18)));
+          if (e.r > 3 && d < 14) { this.stage.screenFlash(0.4); this.stage.punch(0.08); }
           break;
         }
         case 'obstacleHit': {
@@ -542,6 +546,16 @@ export class Match {
         case 'bushDestroyed': { const b = w.map.bushes[e.id]; this.vfx.leaves(b.x, b.y, 14); break; }
         case 'bushRegrow': { const b = w.map.bushes[e.id]; this.vfx.leaves(b.x, b.y, 4); break; }
         case 'pickup':
+          if (e.kind === 'super') {
+            this.vfx.sparkle(e.x, 0.8, e.y, '#FFD84D', 18, 0.9);
+            this.vfx.shockRing(e.x, e.y, 2.2, '#FFE27A');
+            if (this.isMe(e.id)) {
+              audio.play('superReady'); this.controls.vibrate([20, 30, 20]);
+              this.stage.screenFlash(0.35, '#FFF3B0');
+              if (e.stock) this.hud.banner(t('superStock', { n: String(e.stock + 1) }), 'small', 1200);
+            }
+            break;
+          }
           if (this.isMe(e.id)) { audio.play(e.kind === 'cube' ? 'pickup' : 'heal'); this.controls.vibrate(15); }
           this.vfx.sparkle(e.x, 0.6, e.y, e.kind === 'cube' ? '#A8E6CF' : '#FFC8DD', 10, 0.5);
           if (e.kind === 'cube') this.hud.number(e.x, e.y, '+🟩', 'heal');

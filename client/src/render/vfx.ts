@@ -153,6 +153,11 @@ export class VFX {
     this.emit(hx, 0.75, hz, { count: big ? 10 : 5, color: [color, '#ffffff'], angle, spread: 1.1, speed: [2, 5], up: [0.2, 1.2], life: [0.15, 0.3], size: [0.12, 0.26], shape: SHAPE.star, drag: 6 });
     this.emit(hx, 0.75, hz, { count: 1, color: '#ffffff', speed: [0, 0], up: [0, 0], life: [0.08, 0.1], size: [big ? 0.9 : 0.55, big ? 1 : 0.6], shape: SHAPE.glow, endSize: 1.4 });
   }
+  /** Rapid-fire muzzle: short forward flame tongues on top of the regular flash. */
+  gatlingFlash(x: number, z: number, angle: number, big = false) {
+    const hx = x + Math.cos(angle) * 0.85, hz = z + Math.sin(angle) * 0.85;
+    this.emit(hx, 0.75, hz, { count: big ? 4 : 2, color: ['#FFFFFF', '#FFD36B', '#FF9A2E'], angle, spread: 0.25, speed: [6, 10], up: [0, 0.3], drag: 12, life: [0.06, 0.1], size: [big ? 0.34 : 0.26, big ? 0.44 : 0.34], shape: SHAPE.streak, align: true });
+  }
   shotgunPuff(x: number, z: number, angle: number) {
     const hx = x + Math.cos(angle) * 0.8, hz = z + Math.sin(angle) * 0.8;
     this.emit(hx, 0.7, hz, { count: 9, color: ['#FFFFFF', '#FFE9DC', '#F4E8FF'], angle, spread: 1.2, speed: [1.5, 4], up: [0.2, 1], life: [0.35, 0.6], size: [0.3, 0.55], endSize: 0.5, shape: SHAPE.puff, drag: 4 });
@@ -197,6 +202,20 @@ export class VFX {
     this.emit(x, 0.6, z, { count: 10, color: ['#FFF1E0', '#FFE3C9'], speed: [1, 3], up: [0.5, 2], life: [0.5, 0.9], size: [0.4, 0.7], endSize: 0.3, shape: SHAPE.puff, drag: 3, jitter: 0.8 });
     this.debris.burst(x, z, 7, 'wood');
   }
+  /** Super cast: radial light streaks + double shockwave + core flash. */
+  superBurst(x: number, z: number, color: THREE.ColorRepresentation, angle: number) {
+    this.emit(x, 0.9, z, { count: 16, color: [color, '#FFFFFF', '#FFF5BA'], spread: Math.PI * 2, speed: [9, 15], up: [0, 0.6], drag: 6, life: [0.22, 0.35], size: [0.22, 0.32], shape: SHAPE.streak, align: true });
+    this.emit(x, 0.9, z, { count: 10, color: [color, '#FFFFFF'], angle, spread: 0.5, speed: [10, 16], up: [0, 0.4], drag: 5, life: [0.18, 0.28], size: [0.3, 0.42], shape: SHAPE.streak, align: true });
+    this.emit(x, 1.0, z, { count: 1, color: '#FFFFFF', speed: [0, 0], up: [0, 0], life: [0.18, 0.18], size: [2.6, 2.6], endSize: 1.6, shape: SHAPE.glow });
+    this.shockRing(x, z, 2.6, '#FFFFFF', 0.3);
+    this.shockRing(x, z, 3.6, color, 0.5);
+  }
+  /** Big super explosion add-on: a second, wider ring and a shower of hot sparks. */
+  superBlast(x: number, z: number, r: number, color: THREE.ColorRepresentation) {
+    this.emit(x, 0.6, z, { count: Math.round(14 + r * 4), color: [color, '#FFFFFF', '#FFE27A'], spread: Math.PI * 2, speed: [r * 3, r * 5.5], up: [3, 7], gravity: 14, drag: 1.2, life: [0.5, 0.9], size: [0.14, 0.24], shape: SHAPE.streak, align: true });
+    this.shockRing(x, z, r * 1.6, color, 0.55);
+    this.emit(x, 0.1, z, { count: 1, color: '#FFFFFF', speed: [0, 0], up: [0, 0], life: [0.5, 0.5], size: [r * 0.8, r * 0.8], endSize: 3.2, shape: SHAPE.ring, flat: true });
+  }
   shockRing(x: number, z: number, r: number, color: THREE.ColorRepresentation = '#ffffff', life = 0.4) {
     this.emit(x, 0.08, z, { count: 1, color, speed: [0, 0], up: [0, 0], life: [life, life], size: [r * 0.3, r * 0.3], endSize: 6.5, shape: SHAPE.ring, flat: true });
   }
@@ -224,7 +243,8 @@ export class VFX {
     const k = big ? 1.6 : 1;
     switch (kind) {
       case 'bullet': case 'gatling':
-        this.emit(x, 0.8, z, { count: Math.round(6 * k), color: ['#FFE27A', '#FFFFFF'], angle: ang, spread: 1.6, speed: [4, 8], up: [0.5, 2.5], gravity: 8, drag: 4, life: [0.12, 0.25], size: [0.1, 0.16], endSize: 0.3, shape: SHAPE.streak, align: true });
+        this.emit(x, 0.8, z, { count: Math.round(9 * k), color: ['#FFB020', '#FFE27A', '#FFFFFF'], angle: ang, spread: 1.8, speed: [5, 10], up: [0.5, 3], gravity: 10, drag: 3.5, life: [0.14, 0.3], size: [0.12, 0.2], endSize: 0.3, shape: SHAPE.streak, align: true });
+        this.emit(x, 0.8, z, { count: 1, color: '#FFD36B', speed: [0, 0], up: [0, 0], life: [0.1, 0.1], size: [0.5 * k, 0.5 * k], endSize: 2, shape: SHAPE.ring });
         break;
       case 'pellet': case 'bigbang':
         this.emit(x, 0.75, z, { count: Math.round(5 * k), color: ['#FFFFFF', '#FFE9DC'], angle: ang, spread: 1.4, speed: [1.5, 3.5], up: [0.5, 1.5], drag: 4, life: [0.25, 0.4], size: [0.25, 0.4], endSize: 0.4, shape: SHAPE.puff });

@@ -217,6 +217,8 @@ input[type=range] { accent-color: var(--lav-d); width: 9em; height: 28px; }
 .super-pc span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.6em; }
 .super-pc.ready { animation: pulse .8s infinite; filter: drop-shadow(0 0 8px #fff3a8); }
 .super-pc.ready .fg { stroke: #ffd84d; }
+.super-pc .stock { position: absolute; right: -0.4em; bottom: -0.3em; font-size: .95em; color: #7a4e00; background: #ffe27a; border: 2px solid #b0640a; border-radius: 1em; padding: 0 .35em; line-height: 1.3; }
+.super-pc .stock:empty { display: none; }
 .gadget-pc { padding: .3em .7em; }
 .keyhint { font-size: .72em; color: var(--ink); background: rgba(255,255,255,.7); padding: .15em .5em; border-radius: .6em; }
 .hidden-eye { position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); font-size: 1.1em; }
@@ -292,6 +294,8 @@ input[type=range] { accent-color: var(--lav-d); width: 9em; height: 28px; }
 .tc-gadget { right: calc(5% + var(--safe-r) + var(--stick) * .25); bottom: calc(10% + var(--safe-b) + var(--stick) * 2.15); width: calc(var(--stick) * .95); height: calc(var(--stick) * .95); background: var(--mint); }
 .tc-gadget .tc-ico { font-size: calc(var(--stick) * .32); }
 .tc-gadget .tc-count { position: absolute; right: -4px; bottom: -4px; background: #fff; border: 2px solid var(--ink); border-radius: 50%; width: 1.4em; height: 1.4em; display: grid; place-items: center; font-size: .8em; }
+.tc-super .tc-stock { position: absolute; right: -4px; bottom: -4px; display: none; place-items: center; height: 1.4em; min-width: 1.6em; padding: 0 .3em; font-size: .8em; font-weight: 800; color: #7a4e00; background: #ffe27a; border: 2px solid #b0640a; border-radius: 1em; }
+.tc-super .tc-stock.on { display: grid; }
 .tc-gadget.disabled { filter: grayscale(1) opacity(.5); }
 .tc-emote { left: calc(3% + var(--safe-l)); top: calc(30% + var(--safe-t)); width: calc(var(--stick) * .8); height: calc(var(--stick) * .8); background: #fff; }
 .tc-emote .tc-ico { font-size: calc(var(--stick) * .32); }
