@@ -32,6 +32,10 @@ export const RULES = {
   poisonFrom: 58,
   poisonTo: 7,
   poisonDps: 520,
+  /** few survivors left: the cloud starts early and closes faster so the endgame can't stall */
+  poisonEarlyMs: 60000,
+  poisonEarlyRadius: 42,
+  poisonFinal: 2,
   gadgetUses: 3,
   gadgetCooldownMs: 5000,
   assistWindowMs: 5000,
@@ -66,6 +70,8 @@ export class World {
   private nextId = 1;
   poisonRadius: number;
   poisonActive = false;
+  /** 0→1 main shrink (poisonFrom→poisonTo), 1→1.25 final squeeze down to poisonFinal */
+  poisonProgress = 0;
   wind = { x: 0, y: 0, until: 0 };
   crownId: string | null = null;
   winnerId: string | null = null;
@@ -872,13 +878,25 @@ export class World {
   private stepPoison(dt: number) {
     if (!this.cfg.poison) return;
     const t = this.time;
-    if (t < RULES.poisonStartMs) return;
-    if (!this.poisonActive) { this.poisonActive = true; this.events.push({ type: 'poisonStart' }); }
-    const k = clamp((t - RULES.poisonStartMs) / (RULES.poisonEndMs - RULES.poisonStartMs), 0, 1);
-    this.poisonRadius = RULES.poisonFrom + (RULES.poisonTo - RULES.poisonFrom) * k;
+    const alive = this.aliveCount;
+    if (!this.poisonActive) {
+      const early = alive <= 3 && t >= RULES.poisonEarlyMs;
+      if (t < RULES.poisonStartMs && !early) return;
+      this.poisonActive = true;
+      // an early cloud starts right at the arena edge instead of off-map
+      if (early) this.poisonProgress = (RULES.poisonFrom - RULES.poisonEarlyRadius) / (RULES.poisonFrom - RULES.poisonTo);
+      this.events.push({ type: 'poisonStart' });
+    }
+    const speed = alive <= 2 ? 3 : alive <= 3 ? 2 : 1;
+    this.poisonProgress = Math.min(1.25, this.poisonProgress + ((dt * 1000) / (RULES.poisonEndMs - RULES.poisonStartMs)) * speed);
+    const k = this.poisonProgress;
+    this.poisonRadius = k <= 1
+      ? RULES.poisonFrom + (RULES.poisonTo - RULES.poisonFrom) * k
+      : RULES.poisonTo + (RULES.poisonFinal - RULES.poisonTo) * ((k - 1) / 0.25);
+    const dpsMul = k > 1 ? 1.6 : 1;
     for (const f of this.fighters) {
       if (!f.alive || !this.inPoison(f.x, f.y)) continue;
-      f.poisonAcc += RULES.poisonDps * dt;
+      f.poisonAcc += RULES.poisonDps * dpsMul * dt;
       f.poisonTick += dt;
       f.lastCombatAt = t;
       if (f.poisonTick >= 0.5) {

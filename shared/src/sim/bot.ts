@@ -40,6 +40,7 @@ export class Bot {
   private goal: Vec2 | null = null;
   private goalUntil = 0;
   private goalCrate = -1;
+  private senseAt = 0;
   private strafe = 1;
   private strafeAt = 0;
   private seenAt = new Map<string, number>();
@@ -86,6 +87,20 @@ export class Bot {
     if (target) { this.targetId = target.id; this.lastSeen = { x: target.x, y: target.y, t: now }; }
     else this.targetId = null;
     const dist = target ? Math.hypot(target.x - me.x, target.y - me.y) : Infinity;
+
+    // endgame: with few survivors (or the cloud closing in) bots sense roughly where the nearest
+    // rival is and go hunting, so the last duel can't turn into an endless game of hide-and-seek
+    const endgame = world.aliveCount <= 3 || (world.poisonActive && world.poisonRadius < 22);
+    if (endgame && !target && now >= this.senseAt) {
+      this.senseAt = now + 2500;
+      let near: Fighter | null = null, nd = Infinity;
+      for (const f of world.fighters) {
+        if (f === me || !f.alive) continue;
+        const d = Math.hypot(f.x - me.x, f.y - me.y);
+        if (d < nd) { nd = d; near = f; }
+      }
+      if (near) this.lastSeen = { x: near.x + this.rng.range(-3, 3), y: near.y + this.rng.range(-3, 3), t: now };
+    }
     const reacted = target ? now - (this.seenAt.get(target.id) ?? now) >= P.reaction : false;
 
     // ── state selection
