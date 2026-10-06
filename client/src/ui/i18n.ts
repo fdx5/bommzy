@@ -19,6 +19,7 @@ const ko: Dict = {
   tut4: '슈퍼가 찼어요! 슈퍼로 바위를 부숴 보세요', tut5: '완벽해요! 이제 진짜 대전으로!', tutSkip: '건너뛰기', tutStart: '튜토리얼 해볼까요?',
   tutStartSub: '30초면 충분해요', yes: '좋아요', later: '나중에', wins: '승리', games: '판수', best: '최고 점수',
   controlsPc: 'WASD 이동 · 마우스 조준 · 클릭 공격 · E/우클릭 슈퍼 · Space 가젯 · T 이모트 · Tab 점수판',
+  online: '온라인', myRecords: '내 기록', onlineAll: '🌐 전체', onlineWeekly: '🌐 주간', onlineChar: '🌐 {name}', lbOffline: '온라인 랭킹 서버에 연결할 수 없어요. 내 기록만 볼 수 있어요.', lbLoading: '랭킹 불러오는 중…', onlineRank: '🌐 온라인 {n}위', lbEmpty: '아직 등록된 기록이 없어요. 첫 1위를 차지해 보세요!',
   map: '맵', mapSelect: '맵 선택', randomMap: '랜덤 맵', randomMapDesc: '매 판 다른 맵에서!', tapToPick: '눌러서 선택',
   emote0: '😆', emote1: '😠', emote2: 'GG', emote3: '❤️', spectating: '관전 중: {name}', exitMatch: '정말 나갈까요? 이번 판은 패배로 기록돼요.',
 };
@@ -42,6 +43,7 @@ const en: Dict = {
   tut4: 'Super charged! Break a rock with your Super', tut5: 'Perfect! Now for a real match!', tutSkip: 'Skip', tutStart: 'Try the tutorial?',
   tutStartSub: 'Only takes 30 seconds', yes: 'Sure', later: 'Later', wins: 'Wins', games: 'Games', best: 'Best',
   controlsPc: 'WASD move · Mouse aim · Click attack · E/Right-click super · Space gadget · T emote · Tab scores',
+  online: 'Online', myRecords: 'My records', onlineAll: '🌐 All-time', onlineWeekly: '🌐 Weekly', onlineChar: '🌐 {name}', lbOffline: 'Can’t reach the online leaderboard. Showing your local records.', lbLoading: 'Loading leaderboard…', onlineRank: '🌐 Global #{n}', lbEmpty: 'No records yet. Grab the first #1!',
   map: 'Map', mapSelect: 'Choose a map', randomMap: 'Random', randomMapDesc: 'A different arena every match!', tapToPick: 'Tap to pick',
   emote0: '😆', emote1: '😠', emote2: 'GG', emote3: '❤️', spectating: 'Spectating {name}', exitMatch: 'Leave? This match counts as a loss.',
 };

@@ -137,6 +137,7 @@ input[type=range] { accent-color: var(--lav-d); width: 9em; height: 28px; }
 .tabs { display: flex; gap: .4em; justify-content: center; margin-bottom: .6em; flex-wrap: wrap; }
 .lb-row { display: grid; grid-template-columns: 2.2em 1fr auto auto; gap: .6em; align-items: center; padding: .4em .6em; border-radius: .8em; }
 .lb-row:nth-child(odd) { background: #fff; }
+.lb-row.me { background: var(--lemon) !important; }
 .lb-row .rk { font-size: 1.2em; text-align: center; }
 .empty { text-align: center; color: var(--ink-soft); padding: 2em 0; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5em; margin-bottom: .8em; }

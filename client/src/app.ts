@@ -8,6 +8,7 @@ import { Match, type MatchResult } from './game/match';
 import { loadProfile, saveProfile, totalTrophies, addXp, recordMatch, favoriteCharacter, type Profile } from './game/profile';
 import { t, setLang, getLang } from './ui/i18n';
 import { escapeHtml, drawMapPreview } from './ui/hud';
+import { submitResult, fetchLeaderboard } from './game/api';
 
 type Screen = 'title' | 'lobby' | 'chars' | 'mm' | 'match' | 'retire' | 'results';
 
@@ -447,6 +448,7 @@ export class App {
           ${best ? `<span class="chip badge" style="animation-delay:.8s;background:var(--pink)">🎉 ${t('newBest')}</span>` : ''}
           ${ups ? `<span class="chip badge" style="animation-delay:.9s;background:var(--sky)">⬆️ ${t('levelUp')} ${t('level')}${p.level}</span>` : ''}
           ${unlocked.map((s) => `<span class="chip badge" style="animation-delay:1s;background:var(--lav)">🎁 ${t('unlocked', { name: s.name })}</span>`).join('')}
+          <span class="chip badge online-rank hidden" style="background:var(--sky)"></span>
         </div>
         <div class="progress">${t('level')}${lvBefore}${ups ? ' → ' + p.level : ''} · XP +${xp}<div class="bar"><i class="xpfill"></i></div></div>
         <div class="progress">🏆 ${CHAR_BY_ID[r.charId].displayName} ${before} → ${after}<div class="bar"><i class="trfill"></i></div></div>
@@ -474,6 +476,15 @@ export class App {
       (el.querySelector('.trfill') as HTMLElement).style.width = `${Math.min(100, (after % 40) / 40 * 100 || (after ? 100 : 0))}%`;
     }, 200);
     if (r.place === 1) audio.play('victory');
+    submitResult({
+      deviceId: p.deviceId, nickname: p.nickname, charId: r.charId, mapId: w.map.id as MapId,
+      place: r.place, kills: r.kills, assists: r.assists, damage: r.damage, score: r.score, durationMs: Math.round(w.time),
+    }).then((res) => {
+      const b = el.querySelector('.online-rank') as HTMLElement | null;
+      if (!res?.ok || !b) return;
+      b.textContent = t('onlineRank', { n: res.rank });
+      b.classList.remove('hidden');
+    });
     el.querySelector('[data-a=again]')!.addEventListener('click', () => { this.exitMatch(); this.showMatchmaking(); });
     el.querySelector('[data-a=lobby]')!.addEventListener('click', () => { this.exitMatch(); this.showLobby(); });
     this.setScreen('results', el);
@@ -518,10 +529,21 @@ export class App {
     const weekAgo = Date.now() - 7 * 864e5;
     const m = this.modal(`<h2>🏅 ${t('records')}</h2>
       <div class="stat-grid"><div><b>${p.games}</b>${t('games')}</div><div><b>${p.wins}</b>${t('wins')}</div><div><b>${p.bestScore}</b>${t('best')}</div><div><b>${p.kills}</b>${t('kills')}</div></div>
-      <div class="tabs"><button class="btn mint" data-tab="all">${t('all')}</button><button class="btn white" data-tab="weekly">${t('weekly')}</button><button class="btn white" data-tab="char">${t('byChar')}</button></div>
+      <div class="tabs">
+        <button class="btn mint" data-tab="o-all">${t('onlineAll')}</button><button class="btn white" data-tab="o-weekly">${t('onlineWeekly')}</button><button class="btn white" data-tab="o-char">${t('onlineChar', { name: CHAR_BY_ID[p.selected].displayName })}</button>
+        <button class="btn white" data-tab="all">📱 ${t('myRecords')}</button>
+      </div>
       <div class="lb"></div>`);
     const lb = m.el.querySelector('.lb') as HTMLElement;
+    const renderOnline = async (tab: string) => {
+      lb.innerHTML = `<div class="empty">${t('lbLoading')}</div>`;
+      const list = await fetchLeaderboard(tab === 'o-weekly' ? 'weekly' : 'all', p.deviceId, tab === 'o-char' ? p.selected : undefined);
+      if (!list) { lb.innerHTML = `<div class="empty">${t('lbOffline')}</div>`; return; }
+      if (!list.length) { lb.innerHTML = `<div class="empty">${t('lbEmpty')}</div>`; return; }
+      lb.innerHTML = list.map((r) => `<div class="lb-row ${r.me ? 'me' : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span>${this.portraits[r.charId as CharacterId] ? `<img src="${this.portraits[r.charId as CharacterId]}" style="width:1.6em;vertical-align:middle">` : ''} ${escapeHtml(r.nickname)} <small style="color:var(--ink-soft)">${MAP_BY_ID[r.mapId as MapId]?.emoji ?? ''} #${r.place} · ⚔️${r.kills}</small></span><b>⭐${r.score}</b><small style="color:var(--ink-soft)">${new Date(r.createdAt).toLocaleDateString()}</small></div>`).join('');
+    };
     const render = (tab: string) => {
+      if (tab.startsWith('o-')) { void renderOnline(tab); return; }
       let list = p.records;
       if (tab === 'weekly') list = list.filter((r) => r.date >= weekAgo);
       if (tab === 'char') list = list.filter((r) => r.charId === favoriteCharacter(p));
@@ -532,7 +554,7 @@ export class App {
       b.classList.add('mint'); b.classList.remove('white');
       render(b.dataset.tab!);
     }));
-    render('all');
+    render('o-all');
   }
 }
 
