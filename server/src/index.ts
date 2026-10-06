@@ -5,8 +5,8 @@ import { z } from 'zod';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ITEM_BY_ID, SLOTS, goldReward, type ItemSlot } from '@pastel/shared';
-import { connect, migrate } from './db';
+import { ITEM_BY_ID, SLOTS, goldReward, trophyDelta, xpFor, type ItemSlot } from '@pastel/shared';
+import { connect, migrate, applyXp } from './db';
 import { hashPassword, verifyPassword, createSession, userFromToken, sha256, loginBlocked, noteLoginFailure, clearLoginFailures } from './auth';
 
 // local development: pick up server/.env if present (Render injects real env vars)
@@ -81,10 +81,11 @@ app.post('/api/auth/logout', async (c) => {
 
 // ─────────────────────────────────────────────── account
 async function account(userId: number) {
-  const [u, inv, eq] = await Promise.all([
-    db.execute({ sql: 'SELECT id, username, gold, total_earned, total_spent, games, wins, kills, best_score, progress_json, created_at FROM users WHERE id = ?', args: [userId] }),
+  const [u, inv, eq, ch] = await Promise.all([
+    db.execute({ sql: 'SELECT id, username, gold, total_earned, total_spent, games, wins, kills, best_score, level, xp, total_score, selected_character, progress_json, created_at FROM users WHERE id = ?', args: [userId] }),
     db.execute({ sql: 'SELECT item_id FROM user_items WHERE user_id = ? ORDER BY acquired_at', args: [userId] }),
     db.execute({ sql: 'SELECT character_id, slot, item_id FROM user_equipment WHERE user_id = ?', args: [userId] }),
+    db.execute({ sql: 'SELECT character_id, trophies, games, wins, best_score FROM user_characters WHERE user_id = ?', args: [userId] }),
   ]);
   const r = u.rows[0];
   const equipment: Record<string, Partial<Record<ItemSlot, string>>> = {};
@@ -95,7 +96,9 @@ async function account(userId: number) {
     user: {
       id: int(r.id), username: String(r.username), gold: int(r.gold), totalEarned: int(r.total_earned), totalSpent: int(r.total_spent),
       games: int(r.games), wins: int(r.wins), kills: int(r.kills), bestScore: int(r.best_score), createdAt: int(r.created_at),
+      level: int(r.level) || 1, xp: int(r.xp), totalScore: int(r.total_score), selected: String(r.selected_character ?? 'toto'),
     },
+    characters: Object.fromEntries(ch.rows.map((x) => [String(x.character_id), { trophies: int(x.trophies), games: int(x.games), wins: int(x.wins), bestScore: int(x.best_score) }])),
     inventory: inv.rows.map((x) => String(x.item_id)),
     equipment,
     progress,
@@ -108,15 +111,28 @@ app.get('/api/me', async (c) => {
   return c.json({ ok: true, ...(await account(me.id)) });
 });
 
-/** Cross-device sync of local progress (level, xp, trophies, skins, selected brawler). */
+/**
+ * Account preferences (selected brawler, skins, map, tutorial flag). Progression itself
+ * (trophies, level, xp, score, wins) is computed only by the server from match results.
+ */
 app.post('/api/progress', async (c) => {
   const me = await authed(c);
   if (!me) return c.json({ ok: false, error: 'auth' }, 401);
   const body = await c.req.text();
   if (body.length > 20_000) return c.json({ ok: false, error: 'too large' }, 413);
-  try { JSON.parse(body); } catch { return c.json({ ok: false, error: 'invalid' }, 400); }
-  await db.execute({ sql: 'UPDATE users SET progress_json = ? WHERE id = ?', args: [body, me.id] });
+  let prefs: { selected?: string };
+  try { prefs = JSON.parse(body); } catch { return c.json({ ok: false, error: 'invalid' }, 400); }
+  const sel = (CHARACTERS as readonly string[]).includes(prefs.selected ?? '') ? prefs.selected! : null;
+  await db.execute({ sql: 'UPDATE users SET progress_json = ?, selected_character = COALESCE(?, selected_character) WHERE id = ?', args: [body, sel, me.id] });
   return c.json({ ok: true });
+});
+
+/** The account's own recent matches (for the records screen). */
+app.get('/api/history', async (c) => {
+  const me = await authed(c);
+  if (!me) return c.json({ ok: false, error: 'auth' }, 401);
+  const rs = await db.execute({ sql: 'SELECT character_id, map_id, place, kills, assists, damage, score, gold_earned, created_at FROM game_results WHERE user_id = ? ORDER BY score DESC, created_at DESC LIMIT 100', args: [me.id] });
+  return c.json({ ok: true, entries: rs.rows.map((r) => ({ charId: r.character_id, mapId: r.map_id, place: int(r.place), kills: int(r.kills), assists: int(r.assists), damage: int(r.damage), score: int(r.score), gold: int(r.gold_earned), createdAt: int(r.created_at) })) });
 });
 
 app.get('/api/gold/ledger', async (c) => {
@@ -215,10 +231,22 @@ app.post('/api/results', async (c) => {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [me.id, b.charId, b.mapId, b.place, b.kills, b.assists, b.damage, b.score, reward, b.durationMs, equipJson, now],
     });
+    const cur = (await tx.execute({ sql: 'SELECT level, xp FROM users WHERE id = ?', args: [me.id] })).rows[0];
+    const xpGained = xpFor(b.place, b.kills);
+    const lv = applyXp(int(cur.level) || 1, int(cur.xp), xpGained);
+    const tDelta = trophyDelta(b.place);
+    const prevT = int((await tx.execute({ sql: 'SELECT trophies FROM user_characters WHERE user_id = ? AND character_id = ?', args: [me.id, b.charId] })).rows[0]?.trophies);
+    const newT = Math.max(0, prevT + tDelta);
     await tx.execute({
-      sql: `UPDATE users SET games = games + 1, wins = wins + ?, kills = kills + ?, best_score = MAX(best_score, ?),
-            gold = gold + ?, total_earned = total_earned + ? WHERE id = ?`,
-      args: [b.place === 1 ? 1 : 0, b.kills, b.score, reward, reward, me.id],
+      sql: `UPDATE users SET games = games + 1, wins = wins + ?, kills = kills + ?, best_score = MAX(best_score, ?), total_score = total_score + ?,
+            level = ?, xp = ?, selected_character = ?, gold = gold + ?, total_earned = total_earned + ? WHERE id = ?`,
+      args: [b.place === 1 ? 1 : 0, b.kills, b.score, b.score, lv.level, lv.xp, b.charId, reward, reward, me.id],
+    });
+    await tx.execute({
+      sql: `INSERT INTO user_characters (user_id, character_id, trophies, games, wins, best_score, updated_at) VALUES (?, ?, ?, 1, ?, ?, ?)
+            ON CONFLICT(user_id, character_id) DO UPDATE SET trophies = excluded.trophies, games = games + 1, wins = wins + excluded.wins,
+            best_score = MAX(best_score, excluded.best_score), updated_at = excluded.updated_at`,
+      args: [me.id, b.charId, newT, b.place === 1 ? 1 : 0, b.score, now],
     });
     const bal = int((await tx.execute({ sql: 'SELECT gold FROM users WHERE id = ?', args: [me.id] })).rows[0].gold);
     if (reward > 0) {
@@ -230,7 +258,8 @@ app.post('/api/results', async (c) => {
     await tx.commit();
     const best = int((await db.execute({ sql: 'SELECT best_score FROM users WHERE id = ?', args: [me.id] })).rows[0].best_score);
     const rank = int((await db.execute({ sql: 'SELECT COUNT(*) + 1 AS r FROM users WHERE best_score > ?', args: [best] })).rows[0].r);
-    return c.json({ ok: true, best, rank, goldEarned: reward, gold: bal });
+    const acc = await account(me.id);
+    return c.json({ ok: true, best, rank, goldEarned: reward, gold: bal, trophyDelta: tDelta, xpGained, levelUps: lv.ups, account: acc });
   } catch (e) {
     await tx.rollback().catch(() => {});
     throw e;

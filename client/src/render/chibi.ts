@@ -390,6 +390,15 @@ function characterGeometry(id: CharacterId, palette: string[], items: string[] =
   return g;
 }
 
+/** One cosmetic on its own (fitted to Toto's proportions) — used for shop thumbnails. */
+export function itemPreviewGeometry(itemId: string): THREE.BufferGeometry | null {
+  const parts = outfitParts('toto', [itemId]);
+  if (!parts.length) return null;
+  const list: Baked[] = [];
+  for (const spec of parts) bake(spec, list);
+  return mergeGeometries(list.map((b) => b.g), false);
+}
+
 function darker(hex: string, k = 0.45) {
   const c = new THREE.Color(hex);
   const hsl = { h: 0, s: 0, l: 0 };

@@ -47,6 +47,8 @@ export interface Profile {
   mapId: MapId | 'random';
   /** last time progress was synced with the account (ms) */
   progressAt?: number;
+  /** guest progression stashed while an account is logged in (restored on logout) */
+  guestProgress?: Pick<Profile, 'level' | 'xp' | 'trophies' | 'totalScore' | 'wins' | 'games' | 'kills' | 'bestScore'>;
   autoQuality?: 'low' | 'medium' | 'high';
 }
 

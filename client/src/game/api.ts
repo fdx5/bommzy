@@ -46,7 +46,12 @@ export const login = (username: string, password: string) => raw<AuthResponse>('
 export const logout = () => call<{ ok: boolean }>('/api/auth/logout', post({}));
 
 export interface Account {
-  user: { id: number; username: string; gold: number; totalEarned: number; totalSpent: number; games: number; wins: number; kills: number; bestScore: number; createdAt: number };
+  user: {
+    id: number; username: string; gold: number; totalEarned: number; totalSpent: number; games: number; wins: number; kills: number; bestScore: number; createdAt: number;
+    level: number; xp: number; totalScore: number; selected: string;
+  };
+  /** per-brawler progression kept by the server */
+  characters: Record<string, { trophies: number; games: number; wins: number; bestScore: number }>;
   inventory: string[];
   equipment: Record<string, Equipment>;
   progress: unknown;
@@ -65,8 +70,11 @@ export interface ResultSubmit {
   deviceId: string; nickname: string; charId: string; mapId: string;
   place: number; kills: number; assists: number; damage: number; score: number; durationMs: number;
 }
-export interface SubmitResponse { ok: boolean; best?: number; rank?: number; goldEarned: number; gold?: number; guest?: boolean }
+export interface SubmitResponse { ok: boolean; best?: number; rank?: number; goldEarned: number; gold?: number; guest?: boolean; trophyDelta?: number; xpGained?: number; levelUps?: number; account?: Account }
 export const submitResult = (r: ResultSubmit) => call<SubmitResponse>('/api/results', post(r));
+
+export interface HistoryEntry { charId: string; mapId: string; place: number; kills: number; assists: number; damage: number; score: number; gold: number; createdAt: number }
+export async function fetchHistory() { return (await call<{ entries: HistoryEntry[] }>('/api/history'))?.entries ?? null; }
 
 export interface LeaderEntry { rank: number; nickname: string; score: number; charId: string; mapId: string; place: number; kills: number; createdAt: number; me: boolean }
 export async function fetchLeaderboard(scope: 'all' | 'weekly', char?: string) {

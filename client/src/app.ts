@@ -8,7 +8,8 @@ import { Match, type MatchResult } from './game/match';
 import { loadProfile, saveProfile, totalTrophies, addXp, recordMatch, favoriteCharacter, type Profile } from './game/profile';
 import { t, setLang, getLang } from './ui/i18n';
 import { escapeHtml, drawMapPreview } from './ui/hud';
-import { submitResult, fetchLeaderboard, session, login, register, logout, fetchMe, buyItem, equipItem, fetchLedger, saveProgress, type Account } from './game/api';
+import { submitResult, fetchLeaderboard, session, login, register, logout, fetchMe, buyItem, equipItem, fetchLedger, saveProgress, fetchHistory, type Account } from './game/api';
+import { itemThumb, warmItemThumbs } from './render/thumbs';
 
 type Screen = 'title' | 'login' | 'lobby' | 'chars' | 'shop' | 'mm' | 'match' | 'retire' | 'results';
 
@@ -75,7 +76,7 @@ export class App {
     this.match?.hud.showStats(s.showStats);
   }
 
-  private save() { saveProfile(this.profile); }
+  private save() { saveProfile(this.profile); this.pushPrefs(); }
 
   private loop = () => {
     requestAnimationFrame(this.loop);
@@ -163,24 +164,44 @@ export class App {
   }
 
   private onLogin(acc: Account) {
-    this.account = acc;
-    this.profile.nickname = acc.user.username;
-    // adopt synced progress from another device when it's newer
-    const pr = acc.progress as { updatedAt?: number; level?: number; xp?: number; trophies?: Profile['trophies']; skins?: Profile['skins']; selected?: CharacterId } | null;
-    if (pr && (pr.updatedAt ?? 0) > (this.profile.progressAt ?? 0)) {
-      Object.assign(this.profile, { level: pr.level ?? this.profile.level, xp: pr.xp ?? this.profile.xp, trophies: { ...this.profile.trophies, ...(pr.trophies ?? {}) }, skins: pr.skins ?? this.profile.skins, selected: pr.selected ?? this.profile.selected, progressAt: pr.updatedAt });
-    }
-    this.save();
+    const p = this.profile;
+    // keep the guest's own progress aside while the account is active
+    if (!p.guestProgress) p.guestProgress = { level: p.level, xp: p.xp, trophies: { ...p.trophies }, totalScore: p.totalScore, wins: p.wins, games: p.games, kills: p.kills, bestScore: p.bestScore };
+    this.applyAccount(acc, true);
     this.showLobby();
-    if (!this.profile.tutorialDone && this.profile.games === 0) setTimeout(() => this.askTutorial(), 500);
+    if (!p.tutorialDone && p.games === 0) setTimeout(() => this.askTutorial(), 500);
   }
 
-  private pushProgress() {
-    if (!this.account) return;
-    const p = this.profile;
-    p.progressAt = Date.now(); this.save();
-    void saveProgress({ updatedAt: p.progressAt, level: p.level, xp: p.xp, trophies: p.trophies, skins: p.skins, selected: p.selected });
+  /** The server is the source of truth for progression: trophies, level / xp, ⭐ score, 👑 wins, gold. */
+  private applyAccount(acc: Account, withPrefs = false) {
+    this.account = acc;
+    const p = this.profile, u = acc.user;
+    p.nickname = u.username;
+    p.level = u.level; p.xp = u.xp; p.totalScore = u.totalScore; p.wins = u.wins; p.games = u.games; p.kills = u.kills; p.bestScore = u.bestScore;
+    for (const c of CHARACTERS) p.trophies[c.id] = acc.characters[c.id]?.trophies ?? 0;
+    if (withPrefs) {
+      const pr = acc.progress as { selected?: CharacterId; skins?: Profile['skins']; mapId?: Profile['mapId']; tutorialDone?: boolean } | null;
+      if (pr?.skins) p.skins = pr.skins;
+      if (pr?.mapId) p.mapId = pr.mapId;
+      if (pr?.tutorialDone) p.tutorialDone = true;
+      const sel = (pr?.selected ?? u.selected) as CharacterId;
+      if (CHAR_BY_ID[sel]) p.selected = sel;
+    }
+    saveProfile(p);
   }
+
+  private prefsTimer = 0;
+  /** Debounced: account preferences follow the player across devices. */
+  private pushPrefs() {
+    if (!this.account) return;
+    clearTimeout(this.prefsTimer);
+    this.prefsTimer = window.setTimeout(() => {
+      const p = this.profile;
+      void saveProgress({ selected: p.selected, skins: p.skins, mapId: p.mapId, tutorialDone: p.tutorialDone });
+    }, 600);
+  }
+
+  private pushProgress() { this.pushPrefs(); }
 
   private showLogin(msg = '') {
     const el = h(`<div class="login">
@@ -233,6 +254,13 @@ export class App {
   private showHero(id: CharacterId, palette = this.skinPalette(id), items = this.equippedFor(id)) {
     this.lobby.setHero(id, palette, items);
   }
+  /** 3D-rendered item thumbnail (falls back to the kind emoji while rendering). */
+  private thumbImg(id: string) {
+    const it = ITEM_BY_ID[id];
+    const url = itemThumb(id);
+    return url ? `<img src="${url}" alt="" draggable="false">` : `<i style="background:linear-gradient(135deg, ${it.colors[0]}, ${it.colors[1]})">${KIND_LABEL[it.kind].emoji}</i>`;
+  }
+
   private goldText() { return (this.account?.user.gold ?? 0).toLocaleString(); }
 
   private askTutorial() {
@@ -577,6 +605,7 @@ export class App {
       if (b && res.rank) { b.textContent = t('onlineRank', { n: res.rank }); b.classList.remove('hidden'); }
       const g = el.querySelector('.gold-reward') as HTMLElement | null;
       if (this.account && res.gold !== undefined) this.account.user.gold = res.gold;
+      if (res.account) this.applyAccount(res.account);
       if (g && res.goldEarned > 0) { g.textContent = t('goldEarned', { n: res.goldEarned.toLocaleString() }); g.classList.remove('hidden'); audio.play('pickup'); }
     });
     this.pushProgress();
@@ -621,13 +650,18 @@ export class App {
     el.querySelector('[data-a=acct]')?.addEventListener('click', () => {
       m.close();
       if (this.match) return;
-      if (this.account) { void logout(); session.clear(); this.account = null; }
+      if (this.account) {
+        void logout(); session.clear(); this.account = null;
+        const g = this.profile.guestProgress;
+        if (g) { Object.assign(this.profile, g, { trophies: { ...g.trophies } }); delete this.profile.guestProgress; saveProfile(this.profile); }
+      }
       this.showLogin();
     });
   }
 
   // ───────────────────────────── shop
   private showShop() {
+    warmItemThumbs();
     const ko = getLang() === 'ko';
     let char: CharacterId = this.profile.selected;
     let kind: ItemKind = 'hat';
@@ -655,7 +689,7 @@ export class App {
     const renderGrid = () => {
       grid.innerHTML = ITEMS.filter((it) => it.kind === kind).map((it) => `
         <button class="item-card r-${it.rarity} ${selected === it.id ? 'sel' : ''} ${tryOn[it.slot] === it.id ? 'worn' : ''}" data-id="${it.id}">
-          <span class="ico" style="background:linear-gradient(135deg, ${it.colors[0]}, ${it.colors[1]})">${KIND_LABEL[it.kind].emoji}</span>
+          <span class="thumb">${this.thumbImg(it.id)}</span>
           <b>${ko ? it.name : it.nameEn}</b>
           ${owned(it.id) ? `<small class="owned">✔ ${t('owned')}</small>` : `<small class="price">💰 ${it.price.toLocaleString()}</small>`}
         </button>`).join('');
@@ -678,9 +712,9 @@ export class App {
           ${SLOTS.map((sl) => `<div class="slot-row"><span>${ko ? SLOT_LABEL[sl].ko : SLOT_LABEL[sl].en}</span>${tryOn[sl] ? `<em class="${owned(tryOn[sl]!) ? '' : 'unowned'}">${label(tryOn[sl]!)}</em><button class="x-slot" data-s="${sl}" aria-label="remove">✕</button>` : '<i>—</i>'}</div>`).join('')}
         </div>
         ${it ? `<div class="item-detail r-${it.rarity}">
-          <div class="id-head"><span class="ico" style="background:linear-gradient(135deg, ${it.colors[0]}, ${it.colors[1]})">${KIND_LABEL[it.kind].emoji}</span>
+          <div class="id-head"><span class="thumb big">${this.thumbImg(it.id)}</span>
             <div><b>${ko ? it.name : it.nameEn}</b><small class="rarity">${rarityLabel[it.rarity]}</small></div></div>
-          ${owned(it.id) ? `<div class="owned-big">✔ ${t('owned')}</div>` : `<button class="btn coral big buy-btn" data-a="buy">💰 ${it.price.toLocaleString()} ${t('buy')}</button>`}
+          ${owned(it.id) ? `<div class="owned-big">✔ ${t('owned')}</div>` : `<button class="btn coral big buy-btn" data-a="buy"><span class="btn-thumb">${this.thumbImg(it.id)}</span><span>💰 ${it.price.toLocaleString()} ${t('buy')}</span></button>`}
         </div>` : `<div class="empty small">${t('shopHint')}</div>`}
         ${unownedTry.length ? `<div class="note">${t('previewOnly')}</div>` : ''}
         <div class="actions tight">
@@ -743,7 +777,7 @@ export class App {
       return;
     }
     const enough = this.account.user.gold >= it.price;
-    const m = this.modal(`<h2>${KIND_LABEL[it.kind].emoji} ${ko ? it.name : it.nameEn}</h2>
+    const m = this.modal(`<div class="buy-hero r-${it.rarity}">${this.thumbImg(it.id)}</div><h2>${ko ? it.name : it.nameEn}</h2>
       <p style="text-align:center;font-size:1.2em">💰 ${it.price.toLocaleString()} → ${t('balanceAfter')} ${(this.account.user.gold - it.price).toLocaleString()}</p>
       ${enough ? '' : `<p class="login-msg" style="text-align:center">${t('notEnoughGold')}</p>`}
       <div class="actions"><button class="btn coral big" data-a="ok" ${enough ? '' : 'disabled'}>${t('buy')}</button><button class="btn white" data-a="no">${t('cancel')}</button></div>`);
@@ -769,6 +803,7 @@ export class App {
 
   /** Owned items for this brawler, grouped by slot; tap to wear / take off. */
   private wardrobeHtml(char: CharacterId) {
+    warmItemThumbs();
     if (!this.account) return `<div class="wardrobe"><b>👗 ${t('myItems')}</b><div class="empty small">${t('wardrobeGuest')}</div></div>`;
     const ko = getLang() === 'ko';
     const inv = this.account.inventory.map((id) => ITEM_BY_ID[id]).filter(Boolean);
@@ -776,7 +811,7 @@ export class App {
     if (!inv.length) return `<div class="wardrobe"><b>👗 ${t('myItems')}</b><div class="empty small">${t('wardrobeEmpty')}</div><button class="btn lemon" data-a="toshop">🛍️ ${t('shop')}</button></div>`;
     return `<div class="wardrobe"><b>👗 ${t('myItems')}</b>${SLOTS.filter((sl) => inv.some((i) => i.slot === sl)).map((sl) => `
       <div class="w-row"><span>${ko ? SLOT_LABEL[sl].ko : SLOT_LABEL[sl].en}</span><div class="w-items">${inv.filter((i) => i.slot === sl).map((i) => `
-        <button class="w-item r-${i.rarity} ${eq[sl] === i.id ? 'on' : ''}" data-item="${i.id}" title="${ko ? i.name : i.nameEn}"><span class="ico" style="background:linear-gradient(135deg, ${i.colors[0]}, ${i.colors[1]})">${KIND_LABEL[i.kind].emoji}</span>${ko ? i.name : i.nameEn}</button>`).join('')}</div></div>`).join('')}</div>`;
+        <button class="w-item r-${i.rarity} ${eq[sl] === i.id ? 'on' : ''}" data-item="${i.id}" title="${ko ? i.name : i.nameEn}"><span class="thumb sm">${this.thumbImg(i.id)}</span>${ko ? i.name : i.nameEn}</button>`).join('')}</div></div>`).join('')}</div>`;
   }
 
   private bindWardrobe(root: HTMLElement, char: CharacterId, rerender: () => void) {
@@ -821,8 +856,16 @@ export class App {
       if (!list.length) { lb.innerHTML = `<div class="empty">${t('lbEmpty')}</div>`; return; }
       lb.innerHTML = list.map((r) => `<div class="lb-row ${r.me ? 'me' : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span>${this.portraits[r.charId as CharacterId] ? `<img src="${this.portraits[r.charId as CharacterId]}" style="width:1.6em;vertical-align:middle">` : ''} ${escapeHtml(r.nickname)} <small style="color:var(--ink-soft)">${MAP_BY_ID[r.mapId as MapId]?.emoji ?? ''} #${r.place} · ⚔️${r.kills}</small></span><b>⭐${r.score}</b><small style="color:var(--ink-soft)">${new Date(r.createdAt).toLocaleDateString()}</small></div>`).join('');
     };
+    const renderMine = async () => {
+      lb.innerHTML = `<div class="empty">${t('lbLoading')}</div>`;
+      const list = await fetchHistory();
+      if (!list) { lb.innerHTML = `<div class="empty">${t('lbOffline')}</div>`; return; }
+      if (!list.length) { lb.innerHTML = `<div class="empty">${t('noRecords')}</div>`; return; }
+      lb.innerHTML = list.map((r, i) => `<div class="lb-row"><span class="rk">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><span>${this.portraits[r.charId as CharacterId] ? `<img src="${this.portraits[r.charId as CharacterId]}" style="width:1.6em;vertical-align:middle">` : ''} ${MAP_BY_ID[r.mapId as MapId]?.emoji ?? ''} <small style="color:var(--ink-soft)">#${r.place} · ⚔️${r.kills}${r.gold ? ` · 💰${r.gold.toLocaleString()}` : ''}</small></span><b>⭐${r.score}</b><small style="color:var(--ink-soft)">${new Date(r.createdAt).toLocaleDateString()}</small></div>`).join('');
+    };
     const render = (tab: string) => {
       if (tab.startsWith('o-')) { void renderOnline(tab); return; }
+      if (this.account) { void renderMine(); return; }
       let list = p.records;
       if (tab === 'weekly') list = list.filter((r) => r.date >= weekAgo);
       if (tab === 'char') list = list.filter((r) => r.charId === favoriteCharacter(p));
