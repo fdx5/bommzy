@@ -1,0 +1,14 @@
+{
+  "name": "boomzy",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["shared", "client"],
+  "scripts": {
+    "dev": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "preview": "npm run preview -w client",
+    "test": "npm run test -w shared",
+    "balance": "npm run balance -w shared",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w client"
+  }
+}
