@@ -101,6 +101,8 @@ export interface Fighter {
   gadgetCd: number;
   shieldUntil: number;
   dashUntil: number; dashVx: number; dashVy: number;
+  /** tiger pounce: lands (and slams) at this time; 0 = not pouncing */
+  pounceAt: number; pounceDmg: number; pounceX: number; pounceY: number;
   // status
   slowUntil: number; slowAmount: number;
   stunUntil: number;

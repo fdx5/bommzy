@@ -35,14 +35,15 @@ export interface MatchResult {
 
 export interface MatchOptions { mode: 'ffa' | 'tutorial'; charId: CharacterId; skin: string; nickname: string; difficulty: 0 | 1 | 2; mapId: MapId; items?: string[] }
 
-const SFX_FOR: Record<string, Sfx> = { bullet: 'gatling', pellet: 'shotgun', arc: 'throw', arrow: 'bow', boomerang: 'boomerang', bubble: 'bubble' };
-const SUPER_SFX: Record<string, Sfx> = { gatling: 'superGatling', bigbang: 'superBigbang', megabomb: 'superMegabomb', meteor: 'superMeteor', tornado: 'superTornado', prison: 'superPrison' };
+const SFX_FOR: Record<string, Sfx> = { bullet: 'gatling', pellet: 'shotgun', arc: 'throw', arrow: 'bow', boomerang: 'boomerang', bubble: 'bubble', wave: 'roar', claw: 'claw' };
+const SUPER_SFX: Record<string, Sfx> = { gatling: 'superGatling', bigbang: 'superBigbang', megabomb: 'superMegabomb', meteor: 'superMeteor', tornado: 'superTornado', prison: 'superPrison', roar: 'superRoar', pounce: 'superPounce' };
 const IMPACT_SFX: Record<string, Sfx> = {
   bullet: 'impBullet', gatling: 'impBullet', pellet: 'impPellet', bigbang: 'impPellet', arrow: 'impArrow', meteor: 'impArrow',
   boomerang: 'impBoomerang', tornado: 'impBoomerang', bubble: 'impBubble', grenade: 'impExplosive', megabomb: 'impExplosive', prison: 'impBubble', supply: 'impExplosive',
+  wave: 'impWave', roar: 'impWave', claw: 'impClaw', pounce: 'impClaw',
 };
 /** Camera recoil per shot, by projectile type (local player only). */
-const KICK: Record<string, number> = { bullet: 0.05, pellet: 0.32, arc: 0.08, arrow: 0.2, boomerang: 0.12, bubble: 0.1 };
+const KICK: Record<string, number> = { bullet: 0.05, pellet: 0.32, arc: 0.08, arrow: 0.2, boomerang: 0.12, bubble: 0.1, wave: 0.25, claw: 0.1 };
 
 export class Match {
   readonly world: World;
@@ -142,7 +143,7 @@ export class Match {
     stage.follow(this.focus, this.lead, 0.016, true);
     stage.setView(this.scene);
     stage.warmup(this.scene);
-    audio.music('battle');
+    audio.music(this.world.map.id);
     controls.enabled = true;
     controls.reset();
     controls.setVisible(true);
@@ -271,7 +272,8 @@ export class Match {
       m.update({
         dt, time: this.elapsed + f.slot, speed,
         moveYaw: Math.PI / 2 - f.moveAngle, aimYaw: Math.PI / 2 - f.aimAngle, aiming, dashing,
-        superActive: superOn === 'gatling' || superOn === 'tornado' ? superOn : null, lowHp: f.hp / f.maxHp < 0.3,
+        superActive: superOn === 'gatling' || superOn === 'tornado' || superOn === 'pounce' ? superOn : null, lowHp: f.hp / f.maxHp < 0.3,
+        airT: superOn === 'pounce' ? 1 - (f.superUntil - w.time) / superOf(def).durationMs : 0,
       });
       if (vis) {
         pushers.push({ x, z, s: 1 });
@@ -405,6 +407,8 @@ export class Match {
               case 'boomerang': this.vfx.swoosh(e.x, e.y, e.angle); break;
               case 'bubble': this.vfx.impact('bubble', e.x + Math.cos(e.angle) * 0.8, e.y + Math.sin(e.angle) * 0.8, e.angle); break;
               case 'arc': this.vfx.swoosh(e.x, e.y, e.angle, pal[0]); break;
+              case 'wave': this.vfx.shockRing(e.x + Math.cos(e.angle) * 0.6, e.y + Math.sin(e.angle) * 0.6, 1.1, '#FFE27A', 0.2); this.vfx.swoosh(e.x, e.y, e.angle, pal[3] ?? pal[0]); break;
+              case 'claw': this.vfx.swoosh(e.x, e.y, e.angle, '#FFFFFF'); break;
             }
           }
           const sfx: Sfx = e.isSuper && e.kind === 'bullet' ? 'gatlingSuper' : SFX_FOR[e.kind] ?? 'gatling';
@@ -426,6 +430,7 @@ export class Match {
             this.vfx.superBurst(e.x, e.y, pal[0], e.angle);
             if (e.kind === 'meteor') for (let i = 0; i < 6; i++) setTimeout(() => this.vfx.chargeGlow(f.x, f.y, '#FFE27A'), i * 50);
             if (e.kind === 'bigbang') this.vfx.shotgunPuff(e.x, e.y, e.angle);
+            if (e.kind === 'pounce') this.vfx.dust(e.x, e.y, 2);
           }
           if (me) {
             this.stage.screenFlash(0.85, CHAR_BY_ID[f.charId].colorPalette[0]); this.stage.punch(0.18); this.stage.saturate(0.6); this.stage.shake(0.25);
@@ -513,10 +518,14 @@ export class Match {
           if (this.isMe(e.id)) { this.hud.banner(e.n === 2 ? t('double') : e.n === 3 ? t('triple') : t('mega')); audio.play('streak'); }
           break;
         case 'explode': {
-          const pal: string[] = e.kind === 'prison' ? ['#FFFFFF', '#CFF1FF', '#FFC8DD', '#E9DEFF'] : e.kind === 'megabomb' ? ['#FFFFFF', '#FFE9C7', '#E9DEFF', '#FFC8DD'] : ['#FFFFFF', '#FFE3F0', '#F1EAFF'];
+          const pal: string[] = e.kind === 'prison' ? ['#FFFFFF', '#CFF1FF', '#FFC8DD', '#E9DEFF'] : e.kind === 'megabomb' ? ['#FFFFFF', '#FFE9C7', '#E9DEFF', '#FFC8DD']
+            : e.kind === 'roar' ? ['#FFFFFF', '#FFF5BA', '#FFD98A', '#FFE27A'] : e.kind === 'pounce' ? ['#FFFFFF', '#FFE3C9', '#FFB870', '#FF9EAF'] : ['#FFFFFF', '#FFE3F0', '#F1EAFF'];
+          if (e.kind === 'roar') { this.vfx.shockRing(e.x, e.y, e.r, '#FFE27A'); this.vfx.shockRing(e.x, e.y, e.r * 0.6, '#FFFFFF', 0.25); }
+          if (e.kind === 'pounce') { this.vfx.shockRing(e.x, e.y, e.r, '#FFB870'); this.vfx.dust(e.x, e.y, 3); }
           this.vfx.explosion(e.x, e.y, e.r, pal);
           if (e.r > 3) this.vfx.superBlast(e.x, e.y, e.r, pal[1]);
           if (e.kind === 'prison') { audio.play('impBubble', { x: e.x, z: e.y }, 1.2); audio.play('explode', { x: e.x, z: e.y }, 0.7); }
+          else if (e.kind === 'roar' || e.kind === 'pounce') audio.play('land', { x: e.x, z: e.y }, 1.3);
           else audio.play(e.r > 3 ? 'bigExplode' : 'explode', { x: e.x, z: e.y }, e.r > 3 ? 1.1 : 0.9);
           const d = Math.hypot(e.x - this.focus.x, e.y - this.focus.z);
           this.stage.shake(Math.max(0, (e.r > 3 ? 0.75 : 0.25) * (1 - d / 18)));

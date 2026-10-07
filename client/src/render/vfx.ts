@@ -257,6 +257,14 @@ export class VFX {
       case 'boomerang': case 'tornado':
         this.emit(x, 0.8, z, { count: Math.round(7 * k), color: ['#FFF5BA', '#FFE27A', '#FFFFFF'], angle: ang + Math.PI / 2, spread: Math.PI, speed: [3, 6], up: [0.5, 2], drag: 4, life: [0.18, 0.32], size: [0.12, 0.18], shape: SHAPE.streak, align: true });
         break;
+      case 'wave': case 'roar':
+        for (let i = 0; i < 2; i++) this.emit(x, 0.8, z, { count: 1, color: '#FFE27A', speed: [0, 0], up: [0, 0], life: [0.25 + i * 0.1, 0.25 + i * 0.1], size: [0.6 + i * 0.5, 0.6 + i * 0.5], endSize: 2.4, shape: SHAPE.ring });
+        this.emit(x, 0.8, z, { count: Math.round(7 * k), color: ['#FFF5BA', '#FFD98A', '#FFFFFF'], angle: ang, spread: 1.6, speed: [3, 7], up: [0.5, 2.5], drag: 4, life: [0.2, 0.4], size: [0.14, 0.22], shape: SHAPE.star, spin: 6 });
+        break;
+      case 'claw': case 'pounce':
+        for (let i = -1; i <= 1; i++) this.emit(x + Math.cos(ang + Math.PI / 2) * i * 0.18, 0.85 + i * 0.12, z + Math.sin(ang + Math.PI / 2) * i * 0.18, { count: 1, color: '#FFFFFF', angle: ang + 0.7, spread: 0, speed: [6, 6], up: [-2, -2], drag: 10, life: [0.14, 0.14], size: [0.5 * k, 0.5 * k], shape: SHAPE.streak, align: true });
+        this.emit(x, 0.8, z, { count: Math.round(6 * k), color: ['#FF7A8A', '#FFB870', '#FFFFFF'], angle: ang, spread: 1.4, speed: [3, 7], up: [0.5, 2], gravity: 6, drag: 4, life: [0.15, 0.3], size: [0.1, 0.16], shape: SHAPE.streak, align: true });
+        break;
       case 'bubble': case 'prison':
         for (let i = 0; i < 2; i++) this.emit(x, 0.8, z, { count: 1, color: '#CFF1FF', speed: [0, 0], up: [0, 0], life: [0.3 + i * 0.12, 0.3 + i * 0.12], size: [0.5 + i * 0.4, 0.5 + i * 0.4], endSize: 2.2, shape: SHAPE.ring });
         this.emit(x, 0.8, z, { count: Math.round(8 * k), color: ['#FF3FA0', '#FF8CC6', '#FFFFFF'], speed: [1.5, 4], up: [1, 3], gravity: 9, drag: 2, life: [0.35, 0.6], size: [0.1, 0.18], shape: SHAPE.glow });

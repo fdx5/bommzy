@@ -271,7 +271,27 @@ export class App {
   }
 
   // ───────────────────────────── lobby
+  /** Member-only brawlers/maps are locked for guests. */
+  private memberLocked(char: CharacterId) { return !!CHAR_BY_ID[char].memberOnly && !this.account; }
+
+  /** Sign-up prompt shown when a guest taps something reserved for registered players. */
+  private membersOnlyPrompt(what: string) {
+    audio.play('dry');
+    const g = this.modal(`<h2>🔒 ${t('memberOnly')}</h2><p style="text-align:center">${t('memberOnlyMsg', { name: what })}</p>
+      <div class="actions"><button class="btn white" data-a="later">${t('later')}</button><button class="btn mint big" data-a="go">${t('signup')} / ${t('login')}</button></div>`);
+    g.el.querySelector('[data-a=later]')!.addEventListener('click', () => g.close());
+    g.el.querySelector('[data-a=go]')!.addEventListener('click', () => { g.close(); this.showLogin(); });
+  }
+
+  /** A guest can't keep a member-only pick (e.g. after logging out). */
+  private dropMemberPicks() {
+    if (this.account) return;
+    if (this.memberLocked(this.profile.selected)) { this.profile.selected = 'toto'; this.save(); }
+    if (this.profile.mapId !== 'random' && MAP_BY_ID[this.profile.mapId]?.memberOnly) { this.profile.mapId = 'random'; this.save(); }
+  }
+
   private showLobby() {
+    this.dropMemberPicks();
     this.stage.setView(this.lobby.scene, this.lobby.camera);
     this.lobby.resize();
     this.lobby.setMode('lobby');
@@ -334,8 +354,9 @@ export class App {
     </div>`);
     const grid = el.querySelector('.card-grid')!;
     const renderCards = () => {
-      grid.innerHTML = CHARACTERS.map((c) => `<div class="ccard ${c.id === this.previewChar ? 'sel' : ''}" data-id="${c.id}" style="--c:${c.colorPalette[0]}">
+      grid.innerHTML = CHARACTERS.map((c) => `<div class="ccard ${c.id === this.previewChar ? 'sel' : ''} ${this.memberLocked(c.id) ? 'member-lock' : ''}" data-id="${c.id}" style="--c:${c.colorPalette[0]}">
         <span class="tr chip"><span class="trophy">🏆</span>${this.profile.trophies[c.id]}</span>
+        ${c.memberOnly ? `<span class="mo chip">${this.memberLocked(c.id) ? '🔒' : '👑'} ${t('memberBadge')}</span>` : ''}
         ${this.portraits[c.id] ? `<img src="${this.portraits[c.id]}" alt="">` : '<div style="height:78%"></div>'}
         <div class="nm stroke-thin">${c.displayName}</div></div>`).join('');
       grid.querySelectorAll<HTMLElement>('.ccard').forEach((card) => card.addEventListener('click', () => {
@@ -343,6 +364,7 @@ export class App {
         this.previewChar = card.dataset.id as CharacterId;
         this.showHero(this.previewChar);
         renderCards(); renderDetail();
+        if (this.memberLocked(this.previewChar)) this.membersOnlyPrompt(CHAR_BY_ID[this.previewChar].displayName);
       }));
     };
     const renderDetail = () => {
@@ -361,7 +383,10 @@ export class App {
         <div class="ability" style="background:#EFFFF7"><b>✨ ${g.name}</b><small>${g.desc} (×3)</small></div>
         <div><b>${t('skins')}</b><div class="skins">${c.skins.map((sk) => `<div class="skin ${sk.id === selSkin ? 'sel' : ''} ${tro < sk.unlockTrophies ? 'locked' : ''}" data-skin="${sk.id}" title="${sk.name}${tro < sk.unlockTrophies ? ' · ' + t('locked', { n: sk.unlockTrophies }) : ''}" style="background:linear-gradient(135deg, ${sk.palette[0]} 50%, ${sk.palette[1]} 50%)"></div>`).join('')}</div></div>
         ${this.wardrobeHtml(c.id)}
-        <button class="btn ${isSel ? 'white' : 'mint'} big" data-a="pick" ${isSel ? 'disabled' : ''}>${isSel ? t('selected') : t('select')}</button>`;
+        ${this.memberLocked(c.id)
+          ? `<button class="btn coral big" data-a="member">🔒 ${t('memberUnlock')}</button>`
+          : `<button class="btn ${isSel ? 'white' : 'mint'} big" data-a="pick" ${isSel ? 'disabled' : ''}>${isSel ? t('selected') : t('select')}</button>`}`;
+      el.querySelector('[data-a=member]')?.addEventListener('click', () => this.membersOnlyPrompt(c.displayName));
       this.bindWardrobe(el, c.id, renderDetail);
       el.querySelectorAll<HTMLElement>('.skin').forEach((sk) => sk.addEventListener('click', () => {
         const def = c.skins.find((x) => x.id === sk.dataset.skin)!;
@@ -403,10 +428,11 @@ export class App {
   private openMapSelect() {
     const cur = this.profile.mapId;
     const ko = getLang() === 'ko';
-    const cards = [...MAPS.map((m) => ({ id: m.id as MapId | 'random', name: `${m.emoji} ${ko ? m.name : m.nameEn}`, desc: ko ? m.desc : m.descEn })),
-      { id: 'random' as const, name: '🎲 ' + t('randomMap'), desc: t('randomMapDesc') }];
+    const cards = [...MAPS.map((m) => ({ id: m.id as MapId | 'random', name: `${m.emoji} ${ko ? m.name : m.nameEn}`, desc: ko ? m.desc : m.descEn, member: !!m.memberOnly })),
+      { id: 'random' as const, name: '🎲 ' + t('randomMap'), desc: t('randomMapDesc'), member: false }];
     const m = this.modal(`<h2>🗺️ ${t('mapSelect')}</h2><div class="map-grid">${cards.map((c) => `
-      <button class="map-card ${c.id === cur ? 'sel' : ''}" data-map="${c.id}">
+      <button class="map-card ${c.id === cur ? 'sel' : ''} ${c.member && !this.account ? 'member-lock' : ''}" data-map="${c.id}">
+        ${c.member ? `<span class="mo chip">${this.account ? '👑' : '🔒'} ${t('memberBadge')}</span>` : ''}
         <canvas width="180" height="180"></canvas>
         <b>${c.name}</b><small>${c.desc}</small>
       </button>`).join('')}</div>`);
@@ -414,8 +440,10 @@ export class App {
     m.el.querySelectorAll<HTMLElement>('.map-card').forEach((b) => {
       this.paintThumb(b.querySelector('canvas')!, b.dataset.map as MapId | 'random');
       b.addEventListener('click', () => {
+        const id = b.dataset.map as MapId | 'random';
+        if (id !== 'random' && MAP_BY_ID[id].memberOnly && !this.account) { m.close(); this.membersOnlyPrompt(`${MAP_BY_ID[id].emoji} ${ko ? MAP_BY_ID[id].name : MAP_BY_ID[id].nameEn}`); return; }
         audio.play('pop');
-        this.profile.mapId = b.dataset.map as MapId | 'random';
+        this.profile.mapId = id;
         this.save();
         m.close();
         this.showLobby();
@@ -424,7 +452,7 @@ export class App {
   }
 
   private showMatchmaking() {
-    const mapId: MapId = this.profile.mapId === 'random' ? randomMapId() : this.profile.mapId;
+    const mapId: MapId = this.profile.mapId === 'random' || (MAP_BY_ID[this.profile.mapId].memberOnly && !this.account) ? randomMapId(!!this.account) : this.profile.mapId;
     const el = h(`<div class="mm"><div class="box panel">
       <h2 class="stroke" style="margin:0;font-size:1.8em"><span class="dots">${t('searching').replace('…', '')}</span></h2>
       <div class="chip" style="margin-top:.4em">🎮 ${t('mode')} · <b class="cnt">1</b>/8</div>

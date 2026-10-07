@@ -1,5 +1,5 @@
 /**
- * Procedural Web Audio: every SFX and both music loops are synthesized at runtime (0 bytes of assets).
+ * Procedural Web Audio: every SFX and every music loop (lobby + one song per stage, see music.ts) is synthesized at runtime (0 bytes of assets).
  * Each sound is built from layers — transient (click/crack) · body (tone/noise) · sub (punch) · tail —
  * with per-play pitch jitter so rapid fire never sounds like a loop, plus a soft reverb send.
  */
@@ -9,7 +9,10 @@ export type Sfx =
   | 'hitConfirm' | 'crit' | 'shieldHit' | 'hitMe' | 'explode' | 'bigExplode' | 'kill' | 'killMe'
   | 'superReady' | 'superGatling' | 'superBigbang' | 'superMegabomb' | 'superMeteor' | 'superTornado' | 'superPrison'
   | 'pickup' | 'heal' | 'click' | 'reload' | 'dry' | 'rustle' | 'rock' | 'crate' | 'step' | 'land'
-  | 'count' | 'go' | 'retire' | 'victory' | 'event' | 'pop' | 'streak' | 'dash' | 'shield' | 'tick' | 'whoosh';
+  | 'count' | 'go' | 'retire' | 'victory' | 'event' | 'pop' | 'streak' | 'dash' | 'shield' | 'tick' | 'whoosh'
+  | 'roar' | 'claw' | 'superRoar' | 'superPounce' | 'impWave' | 'impClaw';
+
+import { SONGS, type Kit, type Song } from './music';
 
 const NOTE = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -24,8 +27,14 @@ export class AudioEngine {
   private noiseBuf!: AudioBuffer;
   private sfxVol = 0.8;
   private musicVol = 0.5;
-  private track: 'lobby' | 'battle' | null = null;
-  private wantTrack: 'lobby' | 'battle' | null = null;
+  private track: string | null = null;
+  private wantTrack: string | null = null;
+  private song: Song | null = null;
+  /** per-track output (crossfaded on switch) and its reverb send */
+  private trackOut: GainNode | null = null;
+  private trackWet: GainNode | null = null;
+  private musicVerb!: ConvolverNode;
+  private kit!: Kit;
   private nextNote = 0;
   private step = 0;
   private timer: number | null = null;
@@ -56,6 +65,14 @@ export class AudioEngine {
       conv.buffer = ir;
       this.reverbSend = c.createGain(); this.reverbSend.gain.value = 0.16;
       this.reverbSend.connect(conv).connect(this.sfxBus);
+      // music gets its own, longer and softer hall
+      this.musicVerb = c.createConvolver();
+      const mlen = Math.floor(c.sampleRate * 1.8);
+      const mir = c.createBuffer(2, mlen, c.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const d = mir.getChannelData(ch); for (let i = 0; i < mlen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / mlen, 2.6) * 0.6; }
+      this.musicVerb.buffer = mir;
+      this.musicVerb.connect(this.musicBus);
+      this.kit = this.makeKit();
       const nlen = c.sampleRate;
       this.noiseBuf = c.createBuffer(1, nlen, c.sampleRate);
       const d = this.noiseBuf.getChannelData(0);
@@ -315,59 +332,124 @@ export class AudioEngine {
       case 'retire': [79, 74, 71, 67].forEach((n, i) => this.osc(o, 'triangle', NOTE(n), NOTE(n - 1), t + i * 0.12, 0.2, 0.22)); break;
       case 'victory': [72, 76, 79, 84, 79, 84, 88].forEach((n, i) => this.osc(o, i % 2 ? 'square' : 'triangle', NOTE(n), NOTE(n), t + i * 0.11, 0.24, 0.15, 0.002, 4500)); break;
       case 'event': [84, 88, 84, 91].forEach((n, i) => this.osc(o, 'sine', NOTE(n), NOTE(n), t + i * 0.1, 0.2, 0.18)); break;
+      case 'roar': // cub roar: growly saw sweep + breathy noise
+        this.trem(o, 'sawtooth', 260 * p, 150 * p, t, 0.32, 0.16, 38);
+        this.noise(o, t, 0.3, 0.2, 'bandpass', 900, 500, 1.5, 0.02);
+        this.osc(o, 'sine', 120 * p, 70, t, 0.25, 0.3); break;
+      case 'claw': // three quick swishes
+        for (let i = 0; i < 3; i++) this.noise(o, t + i * 0.035, 0.06, 0.22, 'bandpass', 5200 - i * 600, 2500, 3, 0.004);
+        this.osc(o, 'triangle', 1800 * p, 900, t, 0.05, 0.05); break;
+      case 'superRoar':
+        this.trem(o, 'sawtooth', 220, 110, t, 0.8, 0.22, 30);
+        this.trem(o, 'square', 330, 160, t + 0.05, 0.7, 0.07, 22);
+        this.noise(o, t, 0.8, 0.3, 'lowpass', 1800, 300, 1, 0.05);
+        this.osc(o, 'sine', 90, 40, t + 0.1, 0.6, 0.55); break;
+      case 'superPounce':
+        this.noise(o, t, 0.3, 0.25, 'bandpass', 600, 3800, 1.5, 0.02);
+        this.osc(o, 'sine', 300, 900, t, 0.3, 0.12);
+        this.trem(o, 'sawtooth', 300, 200, t, 0.25, 0.08, 40); break;
+      case 'impWave':
+        this.osc(o, 'sine', 300 * p, 120, t, 0.18, 0.3);
+        this.noise(o, t, 0.12, 0.2, 'bandpass', 1500, 700, 1.2); break;
+      case 'impClaw':
+        this.noise(o, t, 0.05, 0.3, 'highpass', 3500, 6000, 1);
+        this.osc(o, 'triangle', 900 * p, 500, t, 0.05, 0.12); break;
       case 'dash': this.noise(o, t, 0.22, 0.32, 'bandpass', 900, 4200, 2, 0.01); this.osc(o, 'sine', 300, 700, t, 0.1, 0.08); break;
       case 'shield': this.osc(o, 'sine', 300, 600, t, 0.3, 0.2); this.osc(o, 'triangle', 900, 1200, t, 0.25, 0.08); this.trem(o, 'sine', 1200, 1250, t, 0.4, 0.05, 20); break;
     }
   }
 
   // ───────────────────────── music
-  music(track: 'lobby' | 'battle' | null) {
+  /** 'lobby', or a stage id (meadow, jungle_ruins, …) for its own battle song; unknown ids fall back to the meadow song. */
+  music(track: string | null) {
     this.wantTrack = track;
     if (!this.ctx || this.track === track) return;
+    const c = this.ctx;
     this.track = track;
-    this.step = 0;
-    this.nextNote = this.ctx.currentTime + 0.1;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    if (track) this.timer = window.setInterval(() => this.schedule(), 25);
+    // fade the previous song out (its already-scheduled notes ring into the fade)
+    const old = this.trackOut, oldWet = this.trackWet;
+    if (old && oldWet) {
+      old.gain.setTargetAtTime(0, c.currentTime, 0.18);
+      setTimeout(() => { old.disconnect(); oldWet.disconnect(); }, 1500);
+    }
+    this.trackOut = this.trackWet = null;
+    if (!track) return;
+    this.song = SONGS[track] ?? SONGS.battle;
+    const out = (this.trackOut = c.createGain());
+    out.gain.setValueAtTime(0.0001, c.currentTime);
+    out.gain.exponentialRampToValueAtTime(1, c.currentTime + 0.4);
+    out.connect(this.musicBus);
+    const wet = (this.trackWet = c.createGain());
+    wet.connect(out);
+    const send = c.createGain(); send.gain.value = 0.35;
+    wet.connect(send).connect(this.musicVerb);
+    this.step = 0;
+    this.nextNote = c.currentTime + 0.12;
+    this.timer = window.setInterval(() => this.schedule(), 25);
   }
 
   private schedule() {
-    const c = this.ctx!;
-    const battle = this.track === 'battle';
-    const bpm = battle ? 132 : 96;
-    const s16 = 60 / bpm / 4;
+    const c = this.ctx!, song = this.song;
+    if (!song || !this.trackOut) return;
+    const s16 = 60 / song.bpm / 4;
     while (this.nextNote < c.currentTime + 0.15) {
-      this.playStep(this.step, this.nextNote, battle);
+      const t = this.nextNote + (this.step % 2 ? (song.swing ?? 0) * s16 : 0);
+      song.step(this.kit, this.step, t, s16);
       this.nextNote += s16;
       this.step = (this.step + 1) % 128;
     }
   }
 
-  private playStep(step: number, t: number, battle: boolean) {
-    const o = this.musicBus;
-    const bar = Math.floor(step / 16) % 8, s = step % 16;
-    const roots = [48, 43, 45, 41, 48, 43, 45, 41];
-    const chords = [[60, 64, 67], [55, 59, 62], [57, 60, 64], [53, 57, 60]];
-    const root = roots[bar];
-    const chord = chords[bar % 4];
-    if (battle) {
-      if (s % 4 === 0) this.osc(o, 'sine', 150, 45, t, 0.18, 0.55);
-      if (s % 8 === 4) { this.noise(o, t, 0.12, 0.22, 'bandpass', 1800, 1200, 0.8); this.osc(o, 'triangle', 220, 160, t, 0.06, 0.1); }
-      if (s % 2 === 1) this.noise(o, t, 0.03, 0.06, 'highpass', 7000);
-      if (s % 2 === 0) this.osc(o, 'triangle', NOTE(root + (s % 8 === 6 ? 12 : 0)), NOTE(root), t, 0.14, 0.28);
-      const mel = [0, -1, 7, -1, 4, -1, 9, 7, -1, 4, -1, 2, 0, -1, 4, -1];
-      const m2 = [12, -1, 9, 7, -1, 4, -1, 7, 9, -1, 12, -1, 14, 12, -1, 9];
-      const line = bar % 2 ? m2 : mel;
-      if (line[s] >= 0) this.osc(o, 'square', NOTE(chord[0] + 12 + line[s]), NOTE(chord[0] + 12 + line[s]), t, 0.12, 0.045, 0.003, 3500);
-      if (s === 0 || s === 8) chord.forEach((n) => this.osc(o, 'sawtooth', NOTE(n), NOTE(n), t, 0.35, 0.016, 0.04, 2000));
-    } else {
-      if (s % 4 === 0) this.osc(o, 'triangle', NOTE(root), NOTE(root), t, 0.4, 0.22);
-      const arp = [0, 1, 2, 1];
-      if (s % 2 === 0) this.osc(o, 'sine', NOTE(chord[arp[(s / 2) % 4]] + 12), NOTE(chord[arp[(s / 2) % 4]] + 12), t, 0.3, 0.07);
-      if (s === 0) chord.forEach((n) => this.osc(o, 'triangle', NOTE(n), NOTE(n), t, 1.2, 0.03, 0.15));
-      if (s % 8 === 6 && bar % 2) this.osc(o, 'sine', NOTE(chord[2] + 24), NOTE(chord[2] + 24), t, 0.2, 0.04);
-    }
+  /** Instruments the songs play; every voice goes to the current track's output (dry) or its reverb-fed bus (wet). */
+  private makeKit(): Kit {
+    const dry = () => this.trackOut!, wetOut = () => this.trackWet!;
+    const c = () => this.ctx!;
+    return {
+      kick: (t, v = 0.5) => { this.osc(dry(), 'sine', 150, 45, t, 0.18, v); this.osc(dry(), 'triangle', 600, 200, t, 0.015, v * 0.25); },
+      clap: (t, v = 0.2) => { this.noise(dry(), t, 0.12, v, 'bandpass', 1800, 1200, 0.8); this.osc(dry(), 'triangle', 220, 160, t, 0.06, v * 0.45); },
+      hat: (t, v = 0.06, dur = 0.03) => this.noise(dry(), t, dur, v, 'highpass', 7000),
+      shaker: (t, v = 0.03) => this.noise(dry(), t, 0.05, v, 'bandpass', 6500, 6000, 1.4, 0.012),
+      rim: (t, v = 0.12) => { this.noise(dry(), t, 0.03, v, 'bandpass', 2600, 2600, 6); this.osc(dry(), 'triangle', 1700, 1500, t, 0.02, v * 0.5); },
+      tom: (t, f, v = 0.3) => this.osc(dry(), 'sine', f, f * 0.55, t, 0.2, v),
+      tek: (t, v = 0.15) => { this.noise(dry(), t, 0.045, v, 'bandpass', 3200, 2800, 3); this.osc(dry(), 'sine', 700, 520, t, 0.03, v * 0.4); },
+      jingle: (t, v = 0.04) => { this.noise(wetOut(), t, 0.09, v, 'highpass', 8500, 8500, 1, 0.004); this.noise(dry(), t + 0.018, 0.06, v * 0.6, 'highpass', 9500); },
+      tone: (type, m, t, dur, v, attack = 0.003, filter, wet) => this.osc(wet ? wetOut() : dry(), type, NOTE(m), NOTE(m), t, dur, v, attack, filter),
+      pluck: (m, t, v, o = {}) => {
+        const ctx = c(), f = NOTE(m), dur = o.dur ?? 0.18;
+        const osc = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+        osc.type = o.type ?? 'triangle';
+        osc.frequency.setValueAtTime(f * (o.bend ?? 1), t);
+        if (o.bend) osc.frequency.exponentialRampToValueAtTime(f, t + 0.035);
+        lp.type = 'lowpass'; lp.Q.value = 2;
+        lp.frequency.setValueAtTime(o.filter ?? 2500, t);
+        lp.frequency.exponentialRampToValueAtTime(Math.max(200, (o.filter ?? 2500) * 0.25), t + dur);
+        this.env(g, t, 0.002, v, dur);
+        osc.connect(lp).connect(g).connect(o.wet ? wetOut() : dry());
+        osc.start(t); osc.stop(t + dur + 0.06);
+      },
+      bell: (m, t, dur, v) => {
+        const f = NOTE(m);
+        this.osc(wetOut(), 'sine', f, f, t, dur, v, 0.002);
+        this.osc(wetOut(), 'sine', f * 4, f * 4, t, dur * 0.3, v * 0.22, 0.001);
+        this.osc(wetOut(), 'sine', f * 2.01, f * 2.01, t, dur * 0.5, v * 0.15, 0.002);
+      },
+      marimba: (m, t, v) => {
+        const f = NOTE(m);
+        this.osc(wetOut(), 'sine', f, f, t, 0.32, v, 0.002);
+        this.osc(dry(), 'sine', f * 3.93, f * 3.93, t, 0.05, v * 0.3, 0.001);
+        this.osc(dry(), 'triangle', f, f, t, 0.06, v * 0.25, 0.001);
+      },
+      steel: (m, t, v) => {
+        const f = NOTE(m);
+        this.osc(wetOut(), 'sine', f, f, t, 0.55, v, 0.004);
+        this.osc(wetOut(), 'sine', f * 2, f * 2, t, 0.35, v * 0.45, 0.004);
+        this.osc(dry(), 'sine', f * 3.01, f * 3.01, t, 0.14, v * 0.2, 0.002);
+        this.osc(dry(), 'triangle', f * 1.5, f * 1.5, t, 0.05, v * 0.12, 0.001);
+      },
+      blip: (t, f0, f1, dur, v) => this.osc(wetOut(), 'sine', f0, f1, t, dur, v, 0.004),
+    };
   }
 }
 

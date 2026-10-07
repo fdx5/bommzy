@@ -96,6 +96,43 @@ describe('weapons', () => {
     expect(fa.superCharge).toBeGreaterThan(0.15);
   });
 
+  it("Leo's roar wave pierces every fighter on its path", () => {
+    const w = makeWorld([human('a', 'leo'), human('b'), human('c')]);
+    w.map.obstacles.forEach((o) => { o.alive = false; });
+    w.bushStates.forEach((s) => { s.alive = false; s.regrowAt = 1e12; });
+    const [fa, fb, fc] = w.fighters;
+    fa.x = fa.px = 0; fa.y = fa.py = 0; fb.x = fb.px = 3; fb.y = fb.py = 0; fc.x = fc.px = 6; fc.y = fc.py = 0;
+    w.setInput('a', { ...emptyInput(), aimX: 1, fire: true });
+    for (let i = 0; i < 50; i++) { w.step(DT); w.setInput('a', { ...emptyInput(), aimX: 1 }); }
+    expect(fb.hp).toBeLessThan(fb.maxHp);
+    expect(fc.hp).toBeLessThan(fc.maxHp);
+  });
+
+  it("Leo's King's Roar knocks back, stuns and shields", () => {
+    const { w, fa, fb } = duel('leo', 'toto', 3);
+    fa.superCharge = 1;
+    w.setInput('a', { ...emptyInput(), aimX: 1, superFire: true });
+    w.step(DT);
+    expect(fb.hp).toBeLessThan(fb.maxHp);
+    expect(fb.stunUntil).toBeGreaterThan(w.time);
+    expect(fa.shieldUntil).toBeGreaterThan(w.time);
+    for (let i = 0; i < 20; i++) { w.step(DT); w.setInput('a', emptyInput()); }
+    expect(fb.x).toBeGreaterThan(3.5);
+  });
+
+  it("Hoya's pounce leaps to the aim point and slams on landing", () => {
+    const { w, fa, fb } = duel('hoya', 'boogie', 7);
+    fa.superCharge = 1;
+    w.setInput('a', { ...emptyInput(), aimX: 1, aimDist: 7, superFire: true });
+    w.step(DT);
+    expect(fa.pounceAt).toBeGreaterThan(0);
+    const hp0 = fb.hp;
+    for (let i = 0; i < 40; i++) { w.step(DT); w.setInput('a', emptyInput()); }
+    expect(fa.pounceAt).toBe(0);
+    expect(fa.x).toBeGreaterThan(4.5);
+    expect(fb.hp).toBeLessThan(hp0 - 1000);
+  });
+
   it('normal attacks never break rocks; supers do', () => {
     const { w, fa, fb } = duel('popo', 'toto', 30);
     const rock = w.map.obstacles.find((o) => o.type === 'rock')!;
@@ -232,7 +269,7 @@ describe('bush stealth (4-1)', () => {
 
 describe('full bot match', () => {
   it('8 bots finish a match with poison in reasonable time', () => {
-    const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS.slice(0, 2)).map((c, i) => ({ id: 'b' + i, name: 'Bot' + i, charId: c.id, isBot: true, difficulty: 1 }));
+    const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS).slice(0, 8).map((c, i) => ({ id: 'b' + i, name: 'Bot' + i, charId: c.id, isBot: true, difficulty: 1 }));
     const w = new World(buildMeadow(), { mode: 'ffa', durationMs: 240000, seed: 11, players, poison: true, mapEvents: true, countdownMs: 0 });
     let steps = 0;
     while (w.phase !== 'ended' && steps < 60 * 260) { w.step(DT); w.drainEvents(); steps++; }

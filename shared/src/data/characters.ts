@@ -1,6 +1,6 @@
 import { WEAPONS, SUPERS, GADGETS, type WeaponDef, type SuperDef, type GadgetDef } from './weapons';
 
-export type CharacterId = 'toto' | 'boogie' | 'popo' | 'luna' | 'kiki' | 'mongle';
+export type CharacterId = 'toto' | 'boogie' | 'popo' | 'luna' | 'kiki' | 'mongle' | 'leo' | 'hoya';
 
 export interface Skin { id: string; name: string; nameEn: string; palette: string[]; unlockTrophies: number }
 
@@ -21,6 +21,8 @@ export interface CharacterDef {
   /** [body, accent, detail, extra] pastel hex */
   colorPalette: string[];
   skins: Skin[];
+  /** only selectable by logged-in (registered) players; guests see a sign-up prompt */
+  memberOnly?: boolean;
 }
 
 const SPEED = { slow: 4.3, normal: 4.9, fast: 5.5 };
@@ -90,6 +92,30 @@ export const CHARACTERS: CharacterDef[] = [
       { id: 'default', name: '기본', nameEn: 'Classic', palette: ['#FFC8DD', '#F5D27A', '#B5DEFF', '#FFFFFF'], unlockTrophies: 0 },
       { id: 'grape', name: '포도', nameEn: 'Grape', palette: ['#C3B1E1', '#F5D27A', '#A8E6CF', '#FFFFFF'], unlockTrophies: 40 },
       { id: 'coral', name: '산호초', nameEn: 'Coral Reef', palette: ['#FFAAA5', '#B5DEFF', '#FFF5BA', '#FFFFFF'], unlockTrophies: 120 },
+    ],
+  },
+  {
+    id: 'leo', displayName: '레오', displayNameEn: 'Leo', concept: '황금빛 아기 사자, 풍성한 갈기와 작은 왕관',
+    role: '탱커·돌격', roleEn: 'Tank', hp: 3900, moveSpeed: 4.7, speedLabel: '보통',
+    hitboxRadius: 0.62, weaponId: 'roarWave', superId: 'kingsRoar', gadgetId: 'maneGuard',
+    colorPalette: ['#FFD98A', '#F2A65A', '#FFF5E1', '#FFE27A'],
+    memberOnly: true,
+    skins: [
+      { id: 'default', name: '기본', nameEn: 'Classic', palette: ['#FFD98A', '#F2A65A', '#FFF5E1', '#FFE27A'], unlockTrophies: 0 },
+      { id: 'snow', name: '눈사자', nameEn: 'Snow Lion', palette: ['#F4F1FF', '#B9A6DE', '#FFFFFF', '#8EC5F0'], unlockTrophies: 40 },
+      { id: 'candy', name: '솜사탕 사자', nameEn: 'Cotton Candy', palette: ['#FFD3E6', '#FF9EBB', '#FFF5FA', '#B5DEFF'], unlockTrophies: 120 },
+    ],
+  },
+  {
+    id: 'hoya', displayName: '호야', displayNameEn: 'Hoya', concept: '주황 아기 호랑이, 이마의 王 무늬와 빨간 머리띠',
+    role: '암살자·기습', roleEn: 'Assassin', hp: 2900, moveSpeed: 5.8, speedLabel: '빠름',
+    hitboxRadius: 0.54, weaponId: 'clawSwipe', superId: 'tigerPounce', gadgetId: 'stripeDash',
+    colorPalette: ['#FFB870', '#5B4A7A', '#FFFFFF', '#FF7A8A'],
+    memberOnly: true,
+    skins: [
+      { id: 'default', name: '기본', nameEn: 'Classic', palette: ['#FFB870', '#5B4A7A', '#FFFFFF', '#FF7A8A'], unlockTrophies: 0 },
+      { id: 'white', name: '백호', nameEn: 'White Tiger', palette: ['#F6F3FF', '#6E6290', '#FFFFFF', '#8EC5F0'], unlockTrophies: 40 },
+      { id: 'mint', name: '민트 호랑이', nameEn: 'Mint Tiger', palette: ['#A8E6CF', '#4E7A6C', '#FFFFFF', '#FFC8DD'], unlockTrophies: 120 },
     ],
   },
 ];

@@ -128,7 +128,7 @@ export class World {
       hp: def.hp, baseHp: def.hp, maxHp: def.hp, alive: true, retiredAt: -1, killedBy: null, place: 0,
       ammo: 3, reloadT: 0, fireCd: 0, fireBufferUntil: -1, burstLeft: 0, burstT: 0, burstAngle: 0, lastAttackAt: -1e9,
       superCharge: 0, superStock: 0, superUntil: 0, superNextShot: 0, superKind: null, tornadoHits: {},
-      gadgetUses: RULES.gadgetUses, gadgetCd: 0, shieldUntil: 0, dashUntil: 0, dashVx: 0, dashVy: 0,
+      gadgetUses: RULES.gadgetUses, gadgetCd: 0, shieldUntil: 0, dashUntil: 0, dashVx: 0, dashVy: 0, pounceAt: 0, pounceDmg: 0, pounceX: 0, pounceY: 0,
       slowUntil: 0, slowAmount: 0, stunUntil: 0, lastCombatAt: -1e9, lastHitAt: -1e9, attackers: {},
       inBush: -1, hiddenSince: 0, revealedUntil: 0,
       cubes: 0, kills: 0, assists: 0, damageDealt: 0, bonusScore: 0, streak: 0, score: 0,
@@ -212,6 +212,14 @@ export class World {
     f.kbx *= kd; f.kby *= kd;
     f.x += vx * dt; f.y += vy * dt;
     this.resolveCollisions(f, def.hitboxRadius);
+
+    // tiger pounce landing slam
+    if (f.pounceAt > 0 && now >= f.pounceAt) {
+      const sd = superOf(def);
+      f.pounceAt = 0;
+      this.explode(f.x, f.y, sd.radius, f.pounceDmg, f, true, 'pounce', sd.terrainDamage, sd.knockback);
+      f.lastCombatAt = now;
+    }
 
     // aim
     if (!stunned && (Math.abs(inp.aimX) > 1e-3 || Math.abs(inp.aimY) > 1e-3)) f.aimAngle = Math.atan2(inp.aimY, inp.aimX);
@@ -417,7 +425,7 @@ export class World {
       const p = this.baseProjectile(f, kind, a, w.projectileSpeed * (n > 1 && kind === 'pellet' ? 1 - Math.abs(i / (n - 1) - 0.5) * 0.15 : 1), w.range, w.damage * mul, w.projectileRadius);
       p.ambush = ambush;
       p.status = w.statusEffect;
-      p.pierce = kind === 'boomerang';
+      p.pierce = kind === 'boomerang' || kind === 'wave';
       if (w.maxRangeDamageMul) p.rangeMul = w.maxRangeDamageMul;
       this.projectiles.push(p);
     }
@@ -480,6 +488,27 @@ export class World {
         const p = this.baseProjectile(f, 'meteor', angle, 55, sd.range, w.damage * sd.damageMultiplier * mul, sd.radius);
         p.isSuper = true; p.superKind = 'meteor'; p.pierce = true; p.terrainDamage = sd.terrainDamage; p.knockback = sd.knockback;
         this.projectiles.push(p);
+        break;
+      }
+      case 'roar': {
+        // shockwave around the lion: damage + knockback, then a short stun on everyone it caught
+        const R = sd.radius;
+        const caught = this.fighters.filter((o) => o !== f && o.alive && Math.hypot(o.x - f.x, o.y - f.y) <= R + CHAR_BY_ID[o.charId].hitboxRadius);
+        this.explode(f.x, f.y, R, w.damage * sd.damageMultiplier * mul, f, true, 'roar', sd.terrainDamage, sd.knockback);
+        for (const o of caught) if (o.alive) o.stunUntil = Math.max(o.stunUntil, this.time + sd.durationMs);
+        f.shieldUntil = Math.max(f.shieldUntil, this.time + 1500);
+        break;
+      }
+      case 'pounce': {
+        // leap toward the aim point; the slam happens on landing (see stepFighter)
+        const d = clamp(aimDist > 0.5 ? aimDist : sd.range, 1.5, sd.range);
+        const v = d / (sd.durationMs / 1000);
+        f.dashVx = Math.cos(angle) * v; f.dashVy = Math.sin(angle) * v;
+        f.dashUntil = this.time + sd.durationMs;
+        f.superKind = 'pounce'; f.superUntil = this.time + sd.durationMs;
+        f.pounceAt = this.time + sd.durationMs; f.pounceDmg = w.damage * sd.damageMultiplier * mul;
+        f.pounceX = clamp(f.x + Math.cos(angle) * d, -this.map.half + 1, this.map.half - 1);
+        f.pounceY = clamp(f.y + Math.sin(angle) * d, -this.map.half + 1, this.map.half - 1);
         break;
       }
     }

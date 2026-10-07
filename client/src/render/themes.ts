@@ -124,5 +124,48 @@ export const THEMES: Record<string, Theme> = {
   },
 };
 
+THEMES.candy = {
+  id: 'candy', tods: ['morning', 'morning', 'sunset'],
+  light: {
+    morning: { sun: '#FFF0F5', hemiSky: '#FFE6F2', fog: '#FFEAF4', cloudA: '#FFFFFF', cloudB: '#F7C9E0' },
+    sunset: { sun: '#FFD9C8', fog: '#FFDCE6', cloudA: '#FFF0F5', cloudB: '#EBB5D2' },
+  },
+  ground: { base: '#FFD9E8', light: 'rgba(255,240,248,0.55)', dark: 'rgba(240,170,200,0.3)', checker: 0.06, path: '#FFF3D6', pathEdge: 'rgba(240,200,160,0.5)', plaza: '#FFF0E0', pad: '#FFFFFF', padRing: 'rgba(140,200,255,0.75)', dots: ['#FFFFFF', '#B5DEFF', '#FFF5BA', '#A8E6CF', '#C3B1E1'], dotCount: 1800 },
+  island: { top: '#FFC2DA', side: '#C98B6B', under: '#A86E52', underBottom: '#9C8CC9', miniTop: '#FFC2DA', miniBlob: '#A8E6CF' },
+  fence: { post: '#FFFFFF', cap: '#FF7A9A', rail: '#FFC8DD', outline: '#B0607E' },
+  trees: ['round', 'apple', 'round'],
+  treeTints: [['#FF9EC4', '#A8E6CF', '#C3B1E1', '#FFE27A'], ['#FFFFFF'], ['#B5DEFF', '#FFC8DD']],
+  treeOutline: '#9C5A80',
+  rock: { shape: 'round', top: '#FFF5BA', bottom: '#FFB3CF', accent: '#FFFFFF', outline: '#B0607E', rubble: ['#FFE3EE', '#F5B8D0'] },
+  bush: { kind: 'puffy', colors: ['#FFC8DD', '#E9C9FF', '#C9F0FF', '#FFD6E8'], blossoms: ['#FFFFFF', '#FFF5BA'], outline: '#B07A9E', withered: '#E8D3C8' },
+  water: { deep: '#FF9EC4', shallow: '#FFD6E8', foam: '#FFFFFF', bank: '#FFF0D6', lily: false },
+  grass: { mult: 0.6, colors: ['#FFE0EE', '#FFD3E6', '#FFEAF2'], height: 0.8, base: '#F2B8CF' },
+  flowers: { colors: ['#FFFFFF', '#FFE27A', '#B5DEFF', '#A8E6CF'], count: 200 },
+  mushrooms: true,
+  ambient: ['petals'],
+  crate: { body: '#FFE6A8', plank: '#F7CF7E', frame: '#E0A35E' },
+  minimap: { base: '#FFD9E8', path: '#FFF3D6', bush: '#F5A8CB', tree: '#E68FB6', rock: '#FFC9DC', crate: '#F2C27A', water: '#FF9EC4', ice: '#DDF0FF' },
+};
+
+THEMES.starlight = {
+  id: 'starlight', tods: ['night'],
+  light: { night: { sun: '#E6DEFF', sunI: 2.0, hemiSky: '#CFC6FF', hemiI: 1.4, fog: '#8E86D8', cloudA: '#D8D0FF', cloudB: '#8F86CC' } },
+  ground: { base: '#A99CE0', light: 'rgba(210,200,255,0.45)', dark: 'rgba(110,95,180,0.35)', checker: 0.05, path: '#D9D2F5', pathEdge: 'rgba(170,160,230,0.5)', plaza: '#DCD4FA', pad: '#F2EEFF', padRing: 'rgba(255,226,122,0.8)', dots: ['#FFF5BA', '#FFFFFF', '#B5DEFF', '#FFC8DD'], dotCount: 1000 },
+  island: { top: '#9C8ED8', side: '#7E70BE', under: '#6A5CA8', underBottom: '#3E3A80', miniTop: '#9C8ED8', miniBlob: '#FFE27A' },
+  fence: { post: '#E6E0FF', cap: '#FFE27A', rail: '#CFC6FF', outline: '#5B4F9E' },
+  trees: ['crystal', 'round', 'crystal'],
+  treeTints: [['#FFFFFF', '#FFF2C8'], ['#8FA8F0', '#B59CF0', '#7FD0D8'], ['#FFD6F5', '#D6F5FF']],
+  treeOutline: '#463A88',
+  rock: { shape: 'crystal', top: '#F2EAFF', bottom: '#A08CE6', accent: '#FFF5BA', outline: '#4B3F94', rubble: ['#E6DCFF', '#B3A2EE'] },
+  bush: { kind: 'puffy', colors: ['#7FA6E8', '#8C94E6', '#77B4E0', '#9A8CE6'], blossoms: ['#FFF5BA', '#FFFFFF'], outline: '#3E4A8E', withered: '#B7AFCF' },
+  water: { deep: '#5A6FD0', shallow: '#9DB4F5', foam: '#FFFFFF', bank: '#CFC6F2', lily: true },
+  grass: { mult: 0.9, colors: ['#9A8EDB', '#8E86D6', '#A69AE2'], height: 1.1, base: '#6F62B8' },
+  flowers: { colors: ['#FFF5BA', '#FFFFFF', '#B5DEFF'], count: 220 },
+  mushrooms: true,
+  ambient: ['fireflies'],
+  crate: { body: '#E8D6FF', plank: '#CDB8F5', frame: '#9F88D8' },
+  minimap: { base: '#A99CE0', path: '#D9D2F5', bush: '#7FA0E6', tree: '#B9A8F0', rock: '#C9B8F5', crate: '#E0C9FF', water: '#5A6FD0', ice: '#DDF0FF' },
+};
+
 export function themeFor(id: string | undefined): Theme { return THEMES[id ?? 'meadow'] ?? THEMES.meadow; }
 export function lightFor(theme: Theme, tod: TimeOfDay): LightPreset { return { ...BASE_LIGHT[tod], ...(theme.light[tod] ?? {}) }; }

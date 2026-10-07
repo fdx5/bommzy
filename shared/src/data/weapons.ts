@@ -1,4 +1,4 @@
-export type ProjectileType = 'bullet' | 'pellet' | 'arc' | 'arrow' | 'boomerang' | 'bubble';
+export type ProjectileType = 'bullet' | 'pellet' | 'arc' | 'arrow' | 'boomerang' | 'bubble' | 'wave' | 'claw';
 export type AimShape = 'line' | 'cone' | 'arc';
 
 export interface StatusEffect { type: 'slow'; durationMs: number; amount: number }
@@ -28,7 +28,7 @@ export interface WeaponDef {
   statusEffect?: StatusEffect;
 }
 
-export type SuperKind = 'gatling' | 'bigbang' | 'megabomb' | 'meteor' | 'tornado' | 'prison';
+export type SuperKind = 'gatling' | 'bigbang' | 'megabomb' | 'meteor' | 'tornado' | 'prison' | 'roar' | 'pounce';
 
 export interface SuperDef {
   id: string;
@@ -73,9 +73,9 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   grenade: {
     id: 'grenade', name: '수류탄', nameEn: 'Grenade', desc: '포물선 투척, 벽 너머 범위 피해',
-    damage: 1080, fireIntervalMs: 650, projectileSpeed: 15, range: 13, spreadDeg: 0, pelletCount: 1,
-    burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1700, projectileType: 'arc',
-    projectileRadius: 0.3, superChargePerHit: 20, hitRate: 0.6, aim: 'arc', splashRadius: 2.1,
+    damage: 1080, fireIntervalMs: 650, projectileSpeed: 14, range: 13, spreadDeg: 0, pelletCount: 1,
+    burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1800, projectileType: 'arc',
+    projectileRadius: 0.3, superChargePerHit: 20, hitRate: 0.6, aim: 'arc', splashRadius: 1.8,
   },
   crossbow: {
     id: 'crossbow', name: '석궁 저격', nameEn: 'Star Crossbow', desc: '긴 사거리 단발, 멀수록 강해짐',
@@ -95,6 +95,18 @@ export const WEAPONS: Record<string, WeaponDef> = {
     burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1600, projectileType: 'bubble',
     projectileRadius: 0.38, superChargePerHit: 100 / 15, hitRate: 0.55, aim: 'cone',
     statusEffect: { type: 'slow', durationMs: 800, amount: 0.35 },
+  },
+  roarWave: {
+    id: 'roarWave', name: '포효 파동', nameEn: 'Roar Wave', desc: '넓은 음파가 경로의 적을 모두 관통',
+    damage: 950, fireIntervalMs: 700, projectileSpeed: 15, range: 8.5, spreadDeg: 0, pelletCount: 1,
+    burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1800, projectileType: 'wave',
+    projectileRadius: 0.6, superChargePerHit: 16, hitRate: 0.75, aim: 'line',
+  },
+  clawSwipe: {
+    id: 'clawSwipe', name: '발톱 할퀴기', nameEn: 'Claw Swipe', desc: '빠른 3갈래 발톱, 짧은 사거리 고데미지',
+    damage: 420, fireIntervalMs: 550, projectileSpeed: 26, range: 7, spreadDeg: 34, pelletCount: 3,
+    burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1300, projectileType: 'claw',
+    projectileRadius: 0.3, superChargePerHit: 100 / 12, hitRate: 0.6, aim: 'cone',
   },
 };
 
@@ -129,6 +141,16 @@ export const SUPERS: Record<string, SuperDef> = {
     desc: '범위 내 적을 1.5초 가둔 뒤 펑! 주변 돌 파괴',
     damageMultiplier: 2.8, radius: 3.4, terrainDamage: 999, durationMs: 1500, knockback: 1, range: 13, aim: 'arc',
   },
+  kingsRoar: {
+    id: 'kingsRoar', kind: 'roar', name: '왕의 포효', nameEn: "King's Roar",
+    desc: '주변 4.2m 적에게 피해·넉백·0.5초 기절! 돌·수풀 파괴 + 1.5초 방패',
+    damageMultiplier: 1.2, radius: 4.2, terrainDamage: 999, durationMs: 500, knockback: 3, range: 0, aim: 'line',
+  },
+  tigerPounce: {
+    id: 'tigerPounce', kind: 'pounce', name: '호랑이 도약', nameEn: 'Tiger Pounce',
+    desc: '목표 지점으로 뛰어올라 쿵! 반경 2.8m 큰 피해, 돌 파괴',
+    damageMultiplier: 3.8, radius: 2.8, terrainDamage: 999, durationMs: 420, knockback: 1.6, range: 9, aim: 'arc',
+  },
 };
 
 export const GADGETS: Record<string, GadgetDef> = {
@@ -137,5 +159,7 @@ export const GADGETS: Record<string, GadgetDef> = {
   iceSlide: { id: 'iceSlide', kind: 'dash', name: '얼음 미끄럼', nameEn: 'Ice Slide', desc: '배로 미끄러지며 6m 이동', value: 6, durationMs: 300 },
   starDash: { id: 'starDash', kind: 'dash', name: '순간 대시', nameEn: 'Star Dash', desc: '별빛과 함께 5m 순간 이동', value: 5, durationMs: 120 },
   bananaSnack: { id: 'bananaSnack', kind: 'heal', name: '바나나 간식', nameEn: 'Banana Snack', desc: '즉시 체력 1100 회복', value: 1100, durationMs: 0 },
+  maneGuard: { id: 'maneGuard', kind: 'shield', name: '갈기 방패', nameEn: 'Mane Guard', desc: '3초간 받는 피해 50% 감소', value: 0.5, durationMs: 3000 },
+  stripeDash: { id: 'stripeDash', kind: 'dash', name: '줄무늬 질주', nameEn: 'Stripe Dash', desc: '번개처럼 4.5m 질주', value: 4.5, durationMs: 140 },
   inkCloud: { id: 'inkCloud', kind: 'ink', name: '먹물 구름', nameEn: 'Ink Cloud', desc: '주변 4m 적을 2초간 둔화', value: 0.45, durationMs: 2000, radius: 4 },
 };

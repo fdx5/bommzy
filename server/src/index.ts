@@ -15,8 +15,11 @@ try { (process as NodeJS.Process & { loadEnvFile?: (p?: string) => void }).loadE
 const db = connect();
 const app = new Hono();
 
-const CHARACTERS = ['toto', 'boogie', 'popo', 'luna', 'kiki', 'mongle'] as const;
-const MAPS = ['meadow', 'jungle_ruins', 'jungle_lagoon', 'desert', 'glacier'] as const;
+const CHARACTERS = ['toto', 'boogie', 'popo', 'luna', 'kiki', 'mongle', 'leo', 'hoya'] as const;
+/** brawlers that require an account (guests can't submit results with them) */
+const MEMBER_ONLY: readonly string[] = ['leo', 'hoya'];
+const MAPS = ['meadow', 'jungle_ruins', 'jungle_lagoon', 'desert', 'glacier', 'candy_town', 'starlight'] as const;
+const MEMBER_MAPS: readonly string[] = ['candy_town', 'starlight'];
 const MIN_SUBMIT_GAP_MS = 20_000;
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 const SIGNUP_BONUS = 3000;
@@ -271,6 +274,7 @@ app.post('/api/results', async (c) => {
 /** Guests (not logged in): anonymous device-id history, no gold. */
 async function guestResult(c: Context, b: z.infer<typeof ResultBody>, now: number) {
   if (!b.deviceId || !b.nickname) return c.json({ ok: false, error: 'auth' }, 401);
+  if (MEMBER_ONLY.includes(b.charId) || MEMBER_MAPS.includes(b.mapId)) return c.json({ ok: false, error: 'members only' }, 403);
   const last = await db.execute({ sql: 'SELECT MAX(created_at) AS t FROM match_results WHERE player_id = ?', args: [b.deviceId] });
   if (now - int(last.rows[0]?.t) < MIN_SUBMIT_GAP_MS) return c.json({ ok: false, error: 'too many submissions' }, 429);
   await db.batch([

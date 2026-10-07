@@ -9,9 +9,9 @@ const DIFF = [
   { aimErr: 3.5, reaction: 170, dodge: 0.75, fireGap: 40, superDelay: 250 },
 ];
 
-const PREF_RANGE: Record<string, number> = { gatling: 10, shotgun: 3.2, grenade: 9.5, crossbow: 17, boomerang: 8, bubble: 9 };
+const PREF_RANGE: Record<string, number> = { gatling: 10, shotgun: 3.2, grenade: 9.5, crossbow: 17, boomerang: 8, bubble: 9, roarWave: 5.5, clawSwipe: 3.4 };
 /** Bots only pull the trigger inside this distance (shotgun pellets spread out). */
-const FIRE_RANGE: Record<string, number> = { shotgun: 6.5 };
+const FIRE_RANGE: Record<string, number> = { shotgun: 6.5, clawSwipe: 6.6, roarWave: 7.8 };
 /** Bots notice enemies within this radius; early on they prefer looting. */
 const SIGHT = 13, SIGHT_EARLY = 6.5, LOOT_PHASE_MS = 35000;
 
@@ -146,7 +146,7 @@ export class Bot {
           const sd = superOf(def);
           const ok = ({
             gatling: dist < 13 && los, bigbang: dist < 6 && los, megabomb: dist < 13, meteor: dist < 22,
-            tornado: dist < 3.6, prison: dist < 12,
+            tornado: dist < 3.6, prison: dist < 12, roar: dist < 3.9, pounce: dist > 2 && dist < 9,
           } as Record<string, boolean>)[sd.kind];
           if (ok) {
             const a = this.lead(target, me, sd.kind === 'meteor' ? 55 : w.projectileSpeed, sd.aim === 'arc');
@@ -159,8 +159,8 @@ export class Bot {
       // gadgets
       if (me.gadgetUses > 0 && me.gadgetCd <= 0) {
         const g = def.gadgetId;
-        if ((g === 'honeyShield' || g === 'bananaSnack') && hpFrac < 0.45 && now - me.lastHitAt < 600) inp.gadget = true;
-        if (g === 'bullRush' && dist > 3.5 && dist < 8 && los) { inp.gadget = true; mx = dx; my = dy; }
+        if ((g === 'honeyShield' || g === 'bananaSnack' || g === 'maneGuard') && hpFrac < 0.45 && now - me.lastHitAt < 600) inp.gadget = true;
+        if ((g === 'bullRush' || g === 'stripeDash') && dist > 3.5 && dist < 8 && los) { inp.gadget = true; mx = dx; my = dy; }
         if ((g === 'starDash' || g === 'iceSlide') && dist < 4 && hpFrac < 0.6) { inp.gadget = true; mx = -dx; my = -dy; }
         if (g === 'inkCloud' && dist < 3.6) inp.gadget = true;
       }

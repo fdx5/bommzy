@@ -108,6 +108,8 @@ export class Entities {
   private flowers: Pool;
   private superStars: Pool;
   private vortices: Pool;
+  private waves: Pool;
+  private claws: Pool;
   readonly aim: AimIndicator;
   private col = new THREE.Color();
   /** Last drawn position per projectile, for continuous tracers. */
@@ -172,12 +174,19 @@ export class Entities {
     const starGeo = new THREE.ExtrudeGeometry(star, { depth: 0.14, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 2 }).translate(0, 0, -0.07);
     starGeo.deleteAttribute('uv');
     this.superStars = new Pool(starGeo, toonMaterial({ color: '#FFD84D', rim: 0.9, rimColor: '#FFFFFF', emissive: '#7A4E00' }), 20, scene, new THREE.InstancedMesh(starGeo, outlineMaterial('#B0640A', 0.035), 20));
+    // Leo's roar wave: a flat golden crescent facing +x (its travel direction)
+    const waveGeo = new THREE.TorusGeometry(1, 0.11, 6, 24, Math.PI * 0.75).rotateZ(-Math.PI * 0.375).rotateX(Math.PI / 2).scale(0.55, 1, 1);
+    this.waves = new Pool(waveGeo, new THREE.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0.9, depthWrite: false }), 40, scene, new THREE.InstancedMesh(waveGeo, outlineMaterial('#B0640A', 0.03), 40));
+    this.waves.mesh.renderOrder = 6;
+    // Hoya's claw: a thin standing crescent slash
+    const clawGeo = new THREE.TorusGeometry(0.32, 0.045, 5, 16, Math.PI * 0.7).rotateZ(-Math.PI * 0.35).rotateX(Math.PI / 2).rotateX(0.5).scale(0.5, 1, 1);
+    this.claws = new Pool(clawGeo, new THREE.MeshBasicMaterial({ color: '#FFFFFF' }), 60, scene, new THREE.InstancedMesh(clawGeo, outlineMaterial('#5B4A7A', 0.03), 60));
     this.aim = new AimIndicator(scene);
   }
 
   update(world: World, alpha: number, dt: number, localId: string | null) {
     const t = world.time / 1000;
-    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars, this.vortices]) p.begin();
+    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars, this.vortices, this.waves, this.claws]) p.begin();
     this.trailT += dt;
     const doTrail = this.trailT > 0.03;
     if (doTrail) this.trailT = 0;
@@ -203,6 +212,14 @@ export class Entities {
           }
         }
         if (doTrail) this.vfx.emit(x, 0.2, z, { count: 3, color: ['#FFFFFF', '#FFF5BA', '#FFE27A'], speed: [4, 7], up: [0.5, 2], life: [0.3, 0.5], size: [0.3, 0.55], shape: SHAPE.puff, drag: 2 });
+      }
+      if (f.pounceAt > 0) {
+        // landing target for the tiger's pounce: shrinking danger ring
+        const left = Math.max(0, (f.pounceAt - world.time) / superOf(CHAR_BY_ID[f.charId]).durationMs);
+        const R = superOf(CHAR_BY_ID[f.charId]).radius;
+        this.markers.push(f.pounceX, 0.06, f.pounceY, R);
+        this.markers.push(f.pounceX, 0.06, f.pounceY, R * (0.25 + 0.75 * left));
+        if (doTrail) this.vfx.trail(x, 1.2, z, '#FFB870', 1.1, SHAPE.glow, 0.15);
       }
       if (f.superKind === 'gatling' && world.time < f.superUntil) {
         this.markers.push(x, 0.07, z, 1.1 + Math.sin(t * 20) * 0.12);
@@ -248,7 +265,7 @@ export class Entities {
       }
     }
 
-    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars, this.vortices]) p.end();
+    for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars, this.vortices, this.waves, this.claws]) p.end();
   }
 
   private ownerColor(world: World, p: Projectile) {
@@ -307,6 +324,26 @@ export class Entities {
         this.shadows.push(x, 0.02, z, 0.9);
         if (doTrail) this.vfx.trail(x, 0.8, z, '#FFE27A', 0.4, SHAPE.glow, 0.16);
         break;
+      case 'wave': {
+        // widens as it travels; tinted with the lion's crown colour
+        const grow = 1 + Math.min(1, p.traveled / p.maxRange) * 0.7;
+        const pal = this.ownerColor(world, p);
+        this.col.set(pal[3] ?? pal[0]).lerp(new THREE.Color('#FFFFFF'), 0.35);
+        this.waves.push(x, 0.7, z, new THREE.Vector3(grow, 1 + Math.sin(world.time * 0.04 + p.id) * 0.1, grow * (p.radius / 0.6)), -ang, 0, 0, this.col);
+        this.waves.push(x - Math.cos(ang) * 0.35, 0.7, z - Math.sin(ang) * 0.35, grow * 0.7, -ang, 0, 0, this.col);
+        if (doTrail) { this.vfx.trail(x, 0.7, z, '#FFF5BA', 1.4 * grow, SHAPE.ring, 0.2); this.vfx.trail(x, 0.6, z, '#FFE27A', 0.8, SHAPE.glow, 0.15); }
+        break;
+      }
+      case 'claw': {
+        const pal = this.ownerColor(world, p);
+        this.col.set('#FFFFFF').lerp(new THREE.Color(pal[3] ?? '#FF7A8A'), 0.25);
+        this.claws.push(x, 0.8, z, 1.5, -ang, 0, 0, this.col);
+        const lc = this.lastPos.get(p.id);
+        if (lc) this.vfx.tracer(lc.x, lc.z, x, z, 0.8, pal[3] ?? '#FF7A8A', 0.3, 0.12, 0.35);
+        this.lastPos.set(p.id, { x, z });
+        if (doTrail) this.vfx.trail(x, 0.8, z, '#FFFFFF', 0.3, SHAPE.glow, 0.1);
+        break;
+      }
       case 'bubble':
         this.bubbles.push(x, 0.7, z, p.radius * 0.95 * (1 + Math.sin(world.time * 0.02 + p.id) * 0.06));
         this.shadows.push(x, 0.02, z, 0.6);
@@ -377,7 +414,7 @@ export class AimIndicator {
     this.line.visible = this.cone.visible = this.target.visible = this.dots.visible = this.ringRange.visible = false;
     const shape = isSuper ? s.aim : w.aim;
     const range = isSuper ? Math.min(s.range || w.range, 24) : w.range;
-    if (isSuper && s.kind === 'tornado') {
+    if (isSuper && (s.kind === 'tornado' || s.kind === 'roar')) {
       this.ringRange.visible = true; this.ringRange.scale.setScalar(s.radius); this.ringRange.rotation.y = 0;
       this.target.visible = true; this.target.position.set(0, 0, 0); this.target.scale.setScalar(s.radius);
       return;
@@ -385,7 +422,7 @@ export class AimIndicator {
     if (shape === 'line') {
       this.line.visible = true;
       this.line.rotation.y = -angle;
-      const width = isSuper ? (s.kind === 'meteor' ? 1.0 : 0.9) : w.projectileType === 'boomerang' ? 0.9 : 0.55;
+      const width = isSuper ? (s.kind === 'meteor' ? 1.0 : 0.9) : w.projectileType === 'boomerang' ? 0.9 : w.projectileType === 'wave' ? w.projectileRadius * 2 : 0.55;
       this.line.scale.set(range, 1, width);
     } else if (shape === 'cone') {
       this.cone.visible = true;

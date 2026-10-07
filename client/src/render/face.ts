@@ -4,7 +4,7 @@ import type { CharacterId } from '@pastel/shared';
  * Per-brawler face recipe: head proportions + eye style. Shared by the chibi builder and the
  * outfit fitter so glasses and hats sit on each character's own head shape.
  */
-export type EyeStyle = 'bean' | 'button' | 'tough' | 'dot' | 'almond' | 'sparkle' | 'happy';
+export type EyeStyle = 'bean' | 'button' | 'tough' | 'dot' | 'almond' | 'sparkle' | 'happy' | 'cat';
 
 export interface Face {
   headR: number;
@@ -34,6 +34,10 @@ export const FACES: Record<CharacterId, Face> = {
   kiki: { headR: 0.36, headS: [1.08, 0.94, 1], eye: 'sparkle', eyeX: 0.135, eyeY: 0.875, eyeScale: 1.1, faceZ: 0, mouth: 'smile' },
   // octopus: big bulb head, happy ^^ eyes and a little "o" mouth
   mongle: { headR: 0.42, headS: [1.02, 1.02, 1], eye: 'happy', eyeX: 0.15, eyeY: 0.885, eyeScale: 1.15, faceZ: 0, mouth: 'o' },
+  // lion cub: big round head framed by the mane, glossy bean eyes
+  leo: { headR: 0.37, headS: [1.08, 0.96, 1], eye: 'bean', eyeX: 0.138, eyeY: 0.88, eyeScale: 1.05, faceZ: 0, mouth: 'smile' },
+  // tiger cub: slightly wide head, bright cat eyes tilted up at the corners
+  hoya: { headR: 0.36, headS: [1.1, 0.94, 1], eye: 'cat', eyeX: 0.14, eyeY: 0.885, eyeScale: 1.02, faceZ: 0, mouth: 'smile' },
 };
 
 /** z of the head's front surface at (x, y). */

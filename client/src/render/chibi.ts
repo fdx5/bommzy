@@ -183,6 +183,14 @@ function eyeParts(f: Face, sg: number): PartSpec[] {
       hl(-0.02, 0.028, 0.028, 0.016), hl(0.022, -0.02, 0.013, 0.016),
       face(new THREE.OctahedronGeometry(0.017 * es, 0), C.white, [x + 0.02 * es, y + 0.034 * es, z0 + 0.012], { s: [1, 1, 0.3] }),
     ];
+    case 'cat': return [
+      // round eye with an upturned outer corner, golden iris and a slim pupil
+      face(sphere(0.064 * es, 14, 12), C.eye, [x, y, z0 - 0.02], { s: [1.08, 1.02, 0.55], r: [0, 0, sg * 0.32] }),
+      face(sphere(0.05 * es, 14, 10), '#E8A23C', [x, y - 0.004 * es, z0 - 0.006], { s: [1, 1, 0.45] }),
+      face(sphere(0.022 * es, 10, 8), C.eye, [x, y - 0.004 * es, z0 + 0.004], { s: [0.55, 1.5, 0.4] }),
+      hl(-0.018, 0.024, 0.022, 0.016), hl(0.018, -0.02, 0.01, 0.016),
+      face(cone(0.014 * es, 0.05 * es, 6), C.eye, [x + sg * 0.07 * es, y + 0.028 * es, z0 - 0.008], { r: [0, 0, -sg * 1.1], s: [1, 1, 0.6] }),
+    ];
     case 'happy': {
       // closed, smiling "^^" eyes, turned to follow the curve of the head
       const yaw = Math.asin(THREE.MathUtils.clamp(x / (f.headR * f.headS[0]), -1, 1)) * 0.8;
@@ -401,6 +409,77 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
       { geo: bananaGeometry(0, 0.07), color: BANANA.tip, bone: 'weapon', p: wp(0.02, 0, 0.12), r: [0, Math.PI / 2, 0.5], s: 0.48, ol: 0.4 },
       { geo: bananaGeometry(0.86, 1), color: BANANA.stem, bone: 'weapon', p: wp(0.02, 0, 0.12), r: [0, Math.PI / 2, 0.5], s: 0.48, ol: 0.4 },
     ];
+    case 'leo': {
+      // fluffy mane: a ring of puffs around the face, a second darker ring behind
+      const mane: PartSpec[] = [];
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        mane.push({ geo: sphere(0.15, 12, 10), color: acc, bone: 'head', p: [Math.cos(a) * 0.4, HEAD_Y + Math.sin(a) * 0.37, -0.06], s: [1, 1, 0.75] });
+      }
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * Math.PI * 2 + 0.35;
+        mane.push({ geo: sphere(0.14, 10, 8), color: darkerHex(acc, 0.86), bone: 'head', p: [Math.cos(a) * 0.3, HEAD_Y + Math.sin(a) * 0.3, -0.2], s: [1, 1, 0.8] });
+      }
+      return [
+        ...baseParts(pal, { face, bodyS: 1.08, muzzle: det }),
+        ...mane,
+        // round ears poking out of the mane
+        { geo: sphere(0.09), color: main, bone: 'earL', p: [0.27, 1.2, 0.02], s: [1, 1, 0.65] },
+        { geo: sphere(0.09), color: main, bone: 'earR', p: [-0.27, 1.2, 0.02], s: [1, 1, 0.65] },
+        { geo: sphere(0.05), color: det, bone: 'earL', p: [0.275, 1.2, 0.07], s: [1, 1, 0.45] },
+        { geo: sphere(0.05), color: det, bone: 'earR', p: [-0.275, 1.2, 0.07], s: [1, 1, 0.45] },
+        // little golden crown with three gem points
+        { geo: cyl(0.14, 0.15, 0.08, 16), color: extra, bone: 'head', p: [0, 1.23, 0.02], gloss: 1, grp: 'hat' },
+        ...[-1, 0, 1].map((k): PartSpec => ({ geo: cone(0.045, 0.1, 8), color: extra, bone: 'head', p: [k * 0.09, 1.31, 0.02 + (k === 0 ? 0.03 : 0)], gloss: 1, grp: 'hat' })),
+        ...[-1, 0, 1].map((k): PartSpec => ({ geo: sphere(0.022, 8, 6), color: k === 0 ? '#FF7A8A' : '#8EC5F0', bone: 'head', p: [k * 0.09, 1.235, 0.16 - Math.abs(k) * 0.03], ol: 0, gloss: 1, grp: 'hat' })),
+        // cream belly + royal sash
+        { geo: sphere(0.2, 14, 10), color: det, bone: 'body', p: [0, 0.4, 0.12], s: [1, 1.05, 0.62], grp: 'top' },
+        { geo: torus(0.3, 0.03, Math.PI * 1.15), color: '#FF7A8A', bone: 'body', p: [0, 0.45, 0.02], r: [0, 0, -0.9], s: [1, 1, 0.9], grp: 'top' },
+        // tail with a mane tuft
+        { geo: capsule(0.04, 0.28), color: main, bone: 'tail', p: [0, 0.42, -0.4], r: [-1.0, 0, 0] },
+        { geo: sphere(0.08, 10, 8), color: acc, bone: 'tail', p: [0, 0.56, -0.55] },
+        // megaphone-ish "roar horn" in the right paw
+        // bell flares forward (+z), narrow end at the paw
+        { geo: cyl(0.11, 0.035, 0.24, 16).rotateX(Math.PI / 2), color: extra, bone: 'weapon', p: wp(0, 0.02, 0.18), gloss: 1 },
+        { geo: torus(0.11, 0.018), color: acc, bone: 'weapon', p: wp(0, 0.02, 0.3) },
+        { geo: cyl(0.03, 0.03, 0.14, 8), color: C.wood, bone: 'weapon', p: wp(0, -0.05, 0.05) },
+      ];
+    }
+    case 'hoya': {
+      // tiger stripes: thin dark arcs baked as separate slabs on head, body and tail
+      const stripe = acc;
+      const headStripe = (x: number, y: number, rz: number, len = 0.1): PartSpec => ({ geo: new THREE.CapsuleGeometry(0.018, len, 2, 6), color: stripe, bone: 'head', p: [x, y, headSurfaceZ(face, x, y) - 0.012], r: [0, Math.asin(Math.max(-1, Math.min(1, x / 0.42))) * 0.9, rz], s: [1, 1, 0.5], ol: 0 });
+      return [
+        ...baseParts(pal, { face, muzzle: det }),
+        // forehead 王 mark
+        headStripe(0, 1.07, Math.PI / 2, 0.08), headStripe(0, 1.025, Math.PI / 2, 0.06), headStripe(0, 0.98, Math.PI / 2, 0.08), headStripe(0, 1.025, 0, 0.07),
+        // cheek whisker-stripes
+        headStripe(0.3, 0.92, Math.PI / 2 - 0.3, 0.07), headStripe(-0.3, 0.92, Math.PI / 2 + 0.3, 0.07),
+        headStripe(0.31, 0.86, Math.PI / 2 + 0.1, 0.06), headStripe(-0.31, 0.86, Math.PI / 2 - 0.1, 0.06),
+        // round ears with white backs
+        { geo: sphere(0.1), color: main, bone: 'earL', p: [0.26, 1.15, -0.02], s: [1, 1, 0.6] },
+        { geo: sphere(0.1), color: main, bone: 'earR', p: [-0.26, 1.15, -0.02], s: [1, 1, 0.6] },
+        { geo: sphere(0.055), color: det, bone: 'earL', p: [0.265, 1.15, 0.03], s: [1, 1, 0.45] },
+        { geo: sphere(0.055), color: det, bone: 'earR', p: [-0.265, 1.15, 0.03], s: [1, 1, 0.45] },
+        // red headband with knot tails
+        { geo: torus(0.3, 0.035), color: extra, bone: 'head', p: [0, 1.12, -0.03], r: [Math.PI / 2 - 0.2, 0, 0], s: [1.08, 1, 1], grp: 'hat' },
+        { geo: sphere(0.05, 10, 8), color: extra, bone: 'head', p: [0.06, 1.08, -0.33], grp: 'hat' },
+        { geo: capsule(0.025, 0.14), color: extra, bone: 'head', p: [0.1, 1.0, -0.36], r: [0.6, 0, 0.5], grp: 'hat' },
+        { geo: capsule(0.025, 0.12), color: extra, bone: 'head', p: [-0.02, 0.98, -0.36], r: [0.6, 0, -0.3], grp: 'hat' },
+        // white belly + body stripes
+        { geo: sphere(0.19, 14, 10), color: det, bone: 'body', p: [0, 0.4, 0.13], s: [1, 1.05, 0.6], grp: 'top' },
+        ...[0.5, 0.42, 0.34].flatMap((y): PartSpec[] => [
+          { geo: new THREE.CapsuleGeometry(0.02, 0.09, 2, 6), color: stripe, bone: 'body', p: [0.255, y, 0.06], r: [0, 0.6, Math.PI / 2 + 0.3], s: [1, 1, 0.5], ol: 0, grp: 'top' },
+          { geo: new THREE.CapsuleGeometry(0.02, 0.09, 2, 6), color: stripe, bone: 'body', p: [-0.255, y, 0.06], r: [0, -0.6, Math.PI / 2 - 0.3], s: [1, 1, 0.5], ol: 0, grp: 'top' },
+        ]),
+        // striped curling tail
+        { geo: capsule(0.05, 0.3), color: main, bone: 'tail', p: [0, 0.46, -0.4], r: [-0.8, 0, 0], pattern: { kind: 'stripes', c2: stripe, freq: 14 } },
+        { geo: sphere(0.06, 10, 8), color: stripe, bone: 'tail', p: [0, 0.6, -0.53] },
+        // claw gauntlet: paw pad with three little blades
+        { geo: sphere(0.1, 12, 10), color: det, bone: 'weapon', p: wp(0, 0, 0.06), s: [1, 0.8, 1] },
+        ...[-1, 0, 1].map((k): PartSpec => ({ geo: cone(0.022, 0.16, 6).rotateX(Math.PI / 2), color: C.metal, bone: 'weapon', p: wp(k * 0.05, 0.02, 0.2), r: [0, k * 0.15, 0], gloss: 1 })),
+      ];
+    }
     case 'mongle': {
       const tentacles: PartSpec[] = [];
       for (let i = 0; i < 6; i++) {
@@ -462,6 +541,10 @@ export function itemPreviewGeometry(itemId: string): THREE.BufferGeometry | null
   return mergeGeometries(list.map((b) => b.g), false);
 }
 
+function darkerHex(hex: string, k: number) {
+  return '#' + new THREE.Color(hex).multiplyScalar(k).getHexString();
+}
+
 function darker(hex: string, k = 0.45) {
   const c = new THREE.Color(hex);
   const hsl = { h: 0, s: 0, l: 0 };
@@ -469,10 +552,10 @@ function darker(hex: string, k = 0.45) {
   return new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 0.7 + 0.15), hsl.l * k);
 }
 
-export type AttackStyle = 'rapid' | 'shotgun' | 'throw' | 'bow' | 'boomerang' | 'bubble';
-export type SuperStyle = 'gatling' | 'bigbang' | 'megabomb' | 'meteor' | 'tornado' | 'prison';
+export type AttackStyle = 'rapid' | 'shotgun' | 'throw' | 'bow' | 'boomerang' | 'bubble' | 'roar' | 'claw';
+export type SuperStyle = 'gatling' | 'bigbang' | 'megabomb' | 'meteor' | 'tornado' | 'prison' | 'roar' | 'pounce';
 
-export const STYLE_FOR: Record<string, AttackStyle> = { bullet: 'rapid', pellet: 'shotgun', arc: 'throw', arrow: 'bow', boomerang: 'boomerang', bubble: 'bubble' };
+export const STYLE_FOR: Record<string, AttackStyle> = { bullet: 'rapid', pellet: 'shotgun', arc: 'throw', arrow: 'bow', boomerang: 'boomerang', bubble: 'bubble', wave: 'roar', claw: 'claw' };
 
 export interface AnimState {
   dt: number;
@@ -483,7 +566,9 @@ export interface AnimState {
   aimYaw?: number;      // world yaw of aim
   aiming?: boolean;     // upper body locks to aim
   dashing?: boolean;
-  superActive?: SuperStyle | null; // continuous supers (gatling / tornado)
+  superActive?: SuperStyle | null; // continuous supers (gatling / tornado / pounce)
+  /** pounce airtime progress 0..1 */
+  airT?: number;
   lowHp?: boolean;
 }
 
@@ -587,12 +672,13 @@ export class ChibiModel {
   // ───────────────────────── triggers
   /** Start of an attack (one per trigger pull). */
   triggerAttack(style: AttackStyle = 'rapid', power = 1) {
-    const dur = { rapid: 0.5, shotgun: 0.6, throw: 0.55, bow: 0.55, boomerang: 0.5, bubble: 0.45 }[style];
+    const dur = { rapid: 0.5, shotgun: 0.6, throw: 0.55, bow: 0.55, boomerang: 0.5, bubble: 0.45, roar: 0.55, claw: 0.35 }[style];
     this.act = { style, t: 0, dur, power };
     if (style === 'throw') this.weaponHideT = 0.42;
     if (style === 'shotgun') { this.hop.v += 1.2 * power; this.squash.v -= 3 * power; }
     if (style === 'bubble') this.squash.v += 3.5;
-    this.recoil.v += { rapid: 0, shotgun: 16, throw: 4, bow: 10, boomerang: 6, bubble: 6 }[style] * power;
+    if (style === 'roar') { this.squash.v += 4; this.hop.v += 0.8; }
+    this.recoil.v += { rapid: 0, shotgun: 16, throw: 4, bow: 10, boomerang: 6, bubble: 6, roar: 10, claw: 3 }[style] * power;
   }
   /** Every projectile volley (each bullet of a burst): small kick. */
   kick(amount = 1) {
@@ -601,10 +687,11 @@ export class ChibiModel {
   }
   triggerSuper(style: SuperStyle | string = 'bigbang') {
     const st = style as SuperStyle;
-    const dur = ({ gatling: 0.35, bigbang: 0.9, megabomb: 1.0, meteor: 0.95, tornado: 0.4, prison: 0.9 } as Record<string, number>)[st] ?? 0.9;
+    const dur = ({ gatling: 0.35, bigbang: 0.9, megabomb: 1.0, meteor: 0.95, tornado: 0.4, prison: 0.9, roar: 0.8, pounce: 0.55 } as Record<string, number>)[st] ?? 0.9;
     this.sup = { style: st, t: 0, dur };
     this.squash.v += 6;
     if (st === 'megabomb') this.hop.v += 4;
+    if (st === 'roar') this.squash.v += 6;
     if (st === 'bigbang' || st === 'meteor') this.recoil.v += 30;
     this.flash = 0.6;
   }
@@ -738,6 +825,14 @@ export class ChibiModel {
       B.root.position.x += (Math.random() - 0.5) * 0.035;
       B.root.position.z += (Math.random() - 0.5) * 0.035;
       B.weapon.rotation.z = time * 40;
+    } else if (s.superActive === 'pounce') {
+      // leap: high arc, curled up, arms reaching forward for the slam
+      const k = clamp(s.airT ?? 0, 0, 1);
+      B.root.position.y += Math.sin(k * Math.PI) * 1.6;
+      B.body.rotation.x += 0.5 - k * 0.9;
+      B.armL.rotation.x = B.armR.rotation.x = -2.4 + k * 1.2;
+      B.legL.rotation.x = B.legR.rotation.x = 0.9;
+      B.tail.rotation.x = -0.6;
     } else if (s.superActive === 'tornado') {
       B.root.rotation.y = time * 16;
       B.armL.rotation.z = 1.5; B.armR.rotation.z = -1.5; B.armR.rotation.x = 0;
@@ -847,6 +942,26 @@ export class ChibiModel {
         B.legL.rotation.x += 0.4 * strike(t, 0.15);
         break;
       }
+      case 'roar': {
+        // chest out, head thrown forward, both arms flung wide
+        const k = strike(t, 0.14);
+        B.body.rotation.x -= k * 0.35;
+        B.head.rotation.x += k * 0.25;
+        B.head.scale.setScalar(1 + k * 0.08);
+        B.armL.rotation.z = 1.3 * k; B.armR.rotation.z = -1.0 * k;
+        B.earL.rotation.z -= k * 0.5; B.earR.rotation.z += k * 0.5;
+        break;
+      }
+      case 'claw': {
+        // quick diagonal swipe across the body
+        const k = t < 0.25 ? easeOut(t / 0.25) : 1;
+        const rec = 1 - Math.max(0, (t - 0.35) / 0.65);
+        B.armR.rotation.x = THREE.MathUtils.lerp(-2.4, -0.6, k) * rec + B.armR.rotation.x * (1 - rec);
+        B.armR.rotation.z = THREE.MathUtils.lerp(-0.9, 0.7, k) * rec;
+        B.body.rotation.y += THREE.MathUtils.lerp(-0.5, 0.45, k) * rec;
+        B.body.rotation.x += 0.2 * strike(t, 0.2);
+        break;
+      }
       case 'bubble': {
         // puff: inflate, then push both arms forward
         const inflate = t < 0.15 ? t / 0.15 : Math.max(0, 1 - (t - 0.15) / 0.25);
@@ -900,6 +1015,24 @@ export class ChibiModel {
         B.head.rotation.x -= inflate * 0.3;
         const push = t > 0.4 ? strike((t - 0.4) / 0.6, 0.12) : 0;
         B.armL.rotation.x = -1.5 * push; B.armR.rotation.x -= 0.6 * push;
+        break;
+      }
+      case 'roar': {
+        // rear up on tiptoes, then a huge forward roar with the mane puffed out
+        const up = t < 0.3 ? easeOut(t / 0.3) : 1;
+        const k = t >= 0.3 ? strike((t - 0.3) / 0.7, 0.12) : 0;
+        B.hips.position.y += up * 0.15 * (1 - k);
+        B.body.rotation.x += -0.4 * up * (1 - k) + 0.45 * k;
+        B.head.scale.setScalar(1 + k * 0.18);
+        B.armL.rotation.z = 1.6 * (up * (1 - k) + k); B.armR.rotation.z = -1.6 * (up * (1 - k) + k);
+        B.root.position.x += (Math.random() - 0.5) * 0.05 * k;
+        break;
+      }
+      case 'pounce': {
+        // crouch before the leap (the airtime itself comes from superActive)
+        const c = t < 0.2 ? Math.sin((t / 0.2) * Math.PI) : 0;
+        B.hips.position.y -= c * 0.12;
+        B.body.rotation.x += c * 0.5;
         break;
       }
       case 'gatling':

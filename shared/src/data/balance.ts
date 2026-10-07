@@ -12,7 +12,7 @@ export const WeaponSchema = z.object({
   projectileSpeed: z.number().positive(), range: z.number().min(3).max(40), spreadDeg: z.number().min(0).max(90),
   pelletCount: z.number().int().min(1), burstCount: z.number().int().min(1), ammoMax: z.literal(3),
   reloadMs: z.number().min(500), superChargePerHit: z.number().positive().max(100),
-  projectileType: z.enum(['bullet', 'pellet', 'arc', 'arrow', 'boomerang', 'bubble']),
+  projectileType: z.enum(['bullet', 'pellet', 'arc', 'arrow', 'boomerang', 'bubble', 'wave', 'claw']),
 }).passthrough();
 
 export const SuperSchema = z.object({
@@ -101,6 +101,6 @@ export function radarStats(c: CharacterDef) {
     damage: Math.min(1, attackDamage(w) / 3000),
     range: Math.min(1, w.range / 25),
     speed: (c.moveSpeed - 4) / 1.7,
-    control: ({ arc: 0.8, bubble: 1, boomerang: 0.7, pellet: 0.5, bullet: 0.4, arrow: 0.3 } as const)[w.projectileType],
+    control: ({ arc: 0.8, bubble: 1, boomerang: 0.7, pellet: 0.5, bullet: 0.4, arrow: 0.3, wave: 0.85, claw: 0.35 } as const)[w.projectileType],
   };
 }

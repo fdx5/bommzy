@@ -9,7 +9,7 @@ import { clusterBushes } from '../sim/bush';
  */
 export const MAP_HALF = 40;
 
-export type MapId = 'meadow' | 'jungle_ruins' | 'jungle_lagoon' | 'desert' | 'glacier';
+export type MapId = 'meadow' | 'jungle_ruins' | 'jungle_lagoon' | 'desert' | 'glacier' | 'candy_town' | 'starlight';
 
 export interface MapInfo {
   id: MapId;
@@ -19,7 +19,9 @@ export interface MapInfo {
   descEn: string;
   emoji: string;
   /** visual theme key used by the client renderer */
-  theme: 'meadow' | 'jungle' | 'desert' | 'glacier';
+  theme: 'meadow' | 'jungle' | 'desert' | 'glacier' | 'candy' | 'starlight';
+  /** only playable by logged-in players; guests never get it, not even from a random pick */
+  memberOnly?: boolean;
 }
 
 export const MAPS: MapInfo[] = [
@@ -28,6 +30,8 @@ export const MAPS: MapInfo[] = [
   { id: 'jungle_lagoon', name: '정글 라군', nameEn: 'Jungle Lagoon', emoji: '🏝️', theme: 'jungle', desc: '광장을 감싼 물길과 8개의 다리. 길목을 지배하라', descEn: 'A lagoon ring with 8 bridges around the plaza. Hold the chokepoints' },
   { id: 'desert', name: '사막 오아시스', nameEn: 'Desert Oasis', emoji: '🏜️', theme: 'desert', desc: '탁 트인 모래밭과 메사 바위. 긴 시야로 저격수가 강해요', descEn: 'Wide open sands and mesas. Long sightlines favour snipers' },
   { id: 'glacier', name: '빙하 지대', nameEn: 'Glacier', emoji: '🧊', theme: 'glacier', desc: '얼음판 위에서는 쭉 미끄러져요! 얼음 가시를 엄폐물로', descEn: 'You slide on the ice lakes! Use ice spikes for cover' },
+  { id: 'candy_town', name: '사탕 마을', nameEn: 'Candy Town', emoji: '🍭', theme: 'candy', memberOnly: true, desc: '딸기우유 분수와 사탕 기둥 골목. 부숴서 길을 만들어요', descEn: 'A strawberry-milk fountain and candy-pillar alleys. Smash your own path' },
+  { id: 'starlight', name: '별빛 정원', nameEn: 'Starlight Garden', emoji: '🌙', theme: 'starlight', memberOnly: true, desc: '밤의 정원, 달빛 연못과 수풀 고리. 매복과 기습의 무대', descEn: 'A moonlit garden of ponds and bush rings. Made for ambushes' },
 ];
 export const MAP_BY_ID = Object.fromEntries(MAPS.map((m) => [m.id, m])) as Record<MapId, MapInfo>;
 
@@ -151,6 +155,38 @@ const LAYOUTS: Record<MapId, (b: Builder) => void> = {
     b.add('tree', polar(5, 45), 0.75, { variant: 2, scale: 1.1 }); // oasis palms
   },
 
+  /** Candy pillars on a grid (destructible cover), cotton-candy bushes, strawberry-milk fountain. */
+  candy_town(b) {
+    b.water({ x: 0, y: 0 }, 2.4);
+    b.crate(polar(7, 0)); b.crate(polar(22, 45)); b.crate(polar(26, 0));
+    for (const x of [11, 17, 23, 29]) for (const y of [4.5, 10.5, 16.5]) {
+      if (y > x - 3) continue;
+      if (Math.hypot(x - SPAWN.x, y - SPAWN.y) < 8) continue;
+      b.rock({ x, y }, 0.95);
+    }
+    for (let x = 13.5; x <= 27; x += 1.9) b.bush({ x, y: 1.1 }, 1.15);
+    b.patch(polar(16, 32), 4, 1.5);
+    b.patch(polar(31, 40), 4, 1.6);
+    b.patch(polar(9, 22.5), 3, 1.0);
+    b.water(polar(33, 0), 2.0);
+    b.scatter('tree', 7, 20, 38.5, 2.6, { avoid: (r, a) => r < 31 && a < 30 });
+  },
+
+  /** Night garden: bush ring around the moon plaza, moon ponds, crystal cover lines. */
+  starlight(b) {
+    b.crate(polar(5.5, 22.5)); b.crate(polar(28, 0));
+    for (const a of [9, 15, 21, 27, 33]) b.bush(polar(10, a), 1.25);
+    b.patch(polar(25, 9), 6, 2.4);
+    b.patch(polar(25, 37), 6, 2.4);
+    b.patch(polar(36, 2), 3, 1.2);
+    b.water(polar(18, 45), 2.6);
+    b.water(polar(31, 22.5 - 12), 1.6);
+    b.rock(polar(14.5, 0), 1.15);
+    b.wall(19, 18, 19, 27, 3, 0.95);
+    b.rock(polar(31, 45), 1.2);
+    b.scatter('tree', 8, 16, 38.5, 2.6, { avoid: (r, a) => Math.abs(a - 22.5) < 8 && r > 26 });
+  },
+
   /** Ice lakes you slide across, ice-spike walls, snowy pines. */
   glacier(b) {
     b.slips.push({ x: 0, y: 0, r: 7.5 });
@@ -204,4 +240,8 @@ export function buildMap(id: MapId = 'meadow', seed = 7): MapData {
   return { id: info.id, name: info.name, theme: info.theme, half: MAP_HALF, spawns, obstacles, bushes, slipZones: b.slips };
 }
 
-export function randomMapId(): MapId { return MAPS[Math.floor(Math.random() * MAPS.length)].id; }
+/** Random arena; guests (`members` = false) never get a member-only map. */
+export function randomMapId(members = true): MapId {
+  const pool = MAPS.filter((m) => members || !m.memberOnly);
+  return pool[Math.floor(Math.random() * pool.length)].id;
+}

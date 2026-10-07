@@ -103,6 +103,13 @@ button { font: inherit; color: inherit; }
 .ccard img { width: 100%; height: 78%; object-fit: contain; display: block; filter: drop-shadow(0 4px 0 rgba(74,59,92,.25)); }
 .ccard .nm { position: absolute; bottom: .25em; left: 0; right: 0; text-align: center; font-size: 1.15em; }
 .ccard .tr { position: absolute; top: .3em; right: .4em; font-size: .8em; }
+.ccard .mo { position: absolute; top: .3em; left: .4em; font-size: .72em; padding: .1em .5em; background: #FFE27A; }
+.ccard.member-lock img { filter: grayscale(.55) brightness(.92) drop-shadow(0 4px 0 rgba(74,59,92,.25)); }
+.ccard.member-lock .mo { background: #fff; }
+.map-card { position: relative; }
+.map-card .mo { position: absolute; top: .6em; left: .6em; z-index: 1; font-size: .72em; padding: .1em .5em; background: #FFE27A; }
+.map-card.member-lock canvas { filter: grayscale(.5) brightness(.95); }
+.map-card.member-lock .mo { background: #fff; }
 .detail { padding: .9em 1em; display: flex; flex-direction: column; gap: .5em; overflow: auto; min-height: 0; }
 .detail h2 { margin: 0; font-size: 1.9em; }
 /* the select button stays reachable however long the panel gets */
