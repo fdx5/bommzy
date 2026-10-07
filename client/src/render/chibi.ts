@@ -510,6 +510,9 @@ function characterParts(id: CharacterId, pal: string[]): PartSpec[] {
   }
 }
 
+/** Shared shadow-depth material for every (skinned) character. */
+const CHIBI_DEPTH = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+
 const geoCache = new Map<string, THREE.BufferGeometry>();
 function characterGeometry(id: CharacterId, palette: string[], items: string[] = []) {
   const outfit = [...items].sort();
@@ -661,6 +664,7 @@ export class ChibiModel {
     this.mesh.bind(skeleton);
     this.outline.bind(skeleton, this.mesh.bindMatrix);
     this.mesh.castShadow = true;
+    this.mesh.customDepthMaterial = CHIBI_DEPTH;
     this.mesh.frustumCulled = this.outline.frustumCulled = true;
     // SkinnedMesh would lazily compute bounds from the first pose (e.g. mid-air during the spawn
     // drop) and then get culled on the ground. A fixed generous sphere covers every pose.

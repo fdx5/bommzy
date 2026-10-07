@@ -41,8 +41,12 @@ export const RULES = {
   poisonFinal: 2,
   /** global multiplier on how fast the cloud closes in (0.5 = half speed) */
   poisonShrinkRate: 0.5,
-  gadgetUses: 3,
-  gadgetCooldownMs: 5000,
+  /** gadget charges: start full, hold at most this many */
+  gadgetUses: 2,
+  /** one charge refills every this many ms while below the max */
+  gadgetRechargeMs: 15000,
+  /** minimum gap between two gadget uses */
+  gadgetCooldownMs: 3000,
   assistWindowMs: 5000,
   crateHp: 2600,
   supplyHp: 3600,
@@ -128,7 +132,7 @@ export class World {
       hp: def.hp, baseHp: def.hp, maxHp: def.hp, alive: true, retiredAt: -1, killedBy: null, place: 0,
       ammo: 3, reloadT: 0, fireCd: 0, fireBufferUntil: -1, burstLeft: 0, burstT: 0, burstAngle: 0, lastAttackAt: -1e9,
       superCharge: 0, superStock: 0, superUntil: 0, superNextShot: 0, superKind: null, tornadoHits: {},
-      gadgetUses: RULES.gadgetUses, gadgetCd: 0, shieldUntil: 0, dashUntil: 0, dashVx: 0, dashVy: 0, pounceAt: 0, pounceDmg: 0, pounceX: 0, pounceY: 0,
+      gadgetUses: RULES.gadgetUses, gadgetCd: 0, gadgetRecharge: 0, shieldUntil: 0, dashUntil: 0, dashVx: 0, dashVy: 0, pounceAt: 0, pounceDmg: 0, pounceX: 0, pounceY: 0,
       slowUntil: 0, slowAmount: 0, stunUntil: 0, lastCombatAt: -1e9, lastHitAt: -1e9, attackers: {},
       inBush: -1, hiddenSince: 0, revealedUntil: 0,
       cubes: 0, kills: 0, assists: 0, damageDealt: 0, bonusScore: 0, streak: 0, score: 0,
@@ -231,6 +235,16 @@ export class World {
     } else f.reloadT = 0;
     f.fireCd -= dt * 1000;
     f.gadgetCd -= dt * 1000;
+    // gadget charges refill one at a time
+    if (f.gadgetUses < RULES.gadgetUses) {
+      f.gadgetRecharge += dt * 1000;
+      if (f.gadgetRecharge >= RULES.gadgetRechargeMs) {
+        f.gadgetRecharge -= RULES.gadgetRechargeMs;
+        f.gadgetUses++;
+        if (f.gadgetUses >= RULES.gadgetUses) f.gadgetRecharge = 0;
+        this.events.push({ type: 'gadgetReady', id: f.id, uses: f.gadgetUses });
+      }
+    } else f.gadgetRecharge = 0;
 
     // bursts in flight
     if (f.burstLeft > 0) {
@@ -610,7 +624,9 @@ export class World {
         else if (!p.returning) p.dead = true;
       }
     }
-    this.projectiles = this.projectiles.filter((p) => !p.dead);
+    let live = 0;
+    for (const p of this.projectiles) if (!p.dead) this.projectiles[live++] = p;
+    this.projectiles.length = live;
   }
 
   private inAnyBush(x: number, y: number) {

@@ -76,6 +76,7 @@ export class Match {
   private tutorialHits = 0;
   private tutEl?: HTMLElement;
   private lead = new THREE.Vector2();
+  private leadTarget = new THREE.Vector2();
   private focus = new THREE.Vector3();
   private lastLocal = { x: 0, z: 0 };
   onRetire?: (killer: Fighter | null, place: number) => void;
@@ -301,10 +302,10 @@ export class Match {
         if (pv.isSuper && sup) dist = Math.min(dist, superOf(CHAR_BY_ID[me.charId]).range || dist);
         this.entities.aim.show(me.charId, sup, meNow.x, meNow.z, ang, dist, pv.strength);
         const leadLen = this.controls.touchMode ? 1.6 : Math.min(2.5, dist * 0.18);
-        this.lead.lerp(new THREE.Vector2(Math.cos(ang) * leadLen, Math.sin(ang) * leadLen), Math.min(1, dt * 4));
+        this.lead.lerp(this.leadTarget.set(Math.cos(ang) * leadLen, Math.sin(ang) * leadLen), Math.min(1, dt * 4));
       } else {
         this.entities.aim.hide();
-        const mv = Math.hypot(me.vx, me.vy) > 0.5 ? new THREE.Vector2(me.vx, me.vy).normalize().multiplyScalar(2) : new THREE.Vector2();
+        const mv = Math.hypot(me.vx, me.vy) > 0.5 ? this.leadTarget.set(me.vx, me.vy).normalize().multiplyScalar(2) : this.leadTarget.set(0, 0);
         this.lead.lerp(mv, Math.min(1, dt * 2.5));
       }
       this.tutorialMoved += Math.hypot(meNow.x - this.lastLocal.x, meNow.z - this.lastLocal.z);
@@ -312,7 +313,7 @@ export class Match {
       if (this.tutorialStep === 0 && this.opts.mode === 'tutorial' && this.tutorialMoved > 4) this.advanceTutorial(1);
     } else {
       this.entities.aim.hide();
-      this.lead.lerp(new THREE.Vector2(), Math.min(1, dt * 3));
+      this.lead.lerp(this.leadTarget.set(0, 0), Math.min(1, dt * 3));
     }
     const vNow = this.viewerId === this.localId ? meNow : { x: viewer.px + (viewer.x - viewer.px) * alpha, z: viewer.py + (viewer.y - viewer.py) * alpha };
     this.focus.set(vNow.x, 0, vNow.z);
@@ -322,7 +323,7 @@ export class Match {
     this.entities.update(w, alpha, dt, this.viewerId);
     this.vfx.update(dt);
     this.controls.setSuperState(me.superCharge, me.superCharge >= 1, me.superStock);
-    this.controls.setGadgetState(me.gadgetUses, me.gadgetCd > 0);
+    this.controls.setGadgetState(me.gadgetUses, me.gadgetCd > 0, me.gadgetUses < RULES.gadgetUses ? me.gadgetRecharge / RULES.gadgetRechargeMs : 0);
     if (this.controls.pendingEmote >= 0) { w.emote(this.localId, this.controls.pendingEmote); this.controls.pendingEmote = -1; }
     this.hud.update(this.viewerId, this.stage.camera, alpha, dt, this.stage.renderer);
 
@@ -572,6 +573,14 @@ export class Match {
         case 'pickupSpawn': this.vfx.sparkle(e.x, 0.6, e.y, '#FFFFFF', 8, 0.4); break;
         case 'superReady':
           if (this.isMe(e.id)) { audio.play('superReady'); this.controls.vibrate([15, 40, 15]); this.hud.banner(t('superReady'), 'small', 1200); }
+          break;
+        case 'gadgetReady':
+          if (this.isMe(e.id)) {
+            const f = w.byId.get(e.id)!;
+            audio.play('reload', undefined, 0.9); this.controls.vibrate(12);
+            this.vfx.sparkle(f.x, 1, f.y, '#A8E6CF', 10, 0.8);
+            this.hud.banner(t('gadgetReady', { n: e.uses }), 'small');
+          }
           break;
         case 'gadget': {
           const f = w.byId.get(e.id)!;

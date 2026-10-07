@@ -63,6 +63,8 @@ export class Stage {
   readonly pitch = THREE.MathUtils.degToRad(55);
   private baseDist = 25;
   contextLost = false;
+  /** dynamic resolution state: `scale` multiplies the quality preset's pixel ratio */
+  private drs = { scale: 1, acc: 0, work: 0, n: 0, goodFor: 0, lockUntil: 0 };
 
   constructor(readonly canvas: HTMLCanvasElement, level: QualityLevel) {
     this.quality = makeQuality(level);
@@ -82,9 +84,34 @@ export class Stage {
   setQuality(level: QualityLevel) {
     if (level === this.quality.level) return;
     this.quality = makeQuality(level);
+    this.drs.scale = 1;
     this.renderer.setPixelRatio(this.quality.pixelRatio);
     this.renderer.shadowMap.enabled = this.quality.shadows;
     this.setupPost();
+    this.resize();
+  }
+
+  /**
+   * Dynamic resolution, fed one real frame time (+ the JS work time of that frame) per in-match frame:
+   * when the last second averaged under ~54fps and the GPU is the bottleneck, the render resolution
+   * steps down (to 70% of the preset at most); after 6 steady seconds at 60fps it creeps back up.
+   * A drop blocks raising again for 20s so it doesn't see-saw. One-off hitches (>100ms) are ignored,
+   * and CPU-bound slowness is left alone since fewer pixels wouldn't help there.
+   */
+  adaptResolution(frameMs: number, workMs: number, now: number) {
+    const d = this.drs;
+    if (frameMs > 100) return;
+    d.acc += frameMs; d.work += workMs; d.n++;
+    if (d.acc < 1000) return;
+    const fps = (1000 * d.n) / d.acc, cpuBound = d.work > d.acc * 0.45;
+    d.acc = 0; d.work = 0; d.n = 0;
+    let next = d.scale;
+    if (fps < 54 && !cpuBound) { next = Math.max(0.7, d.scale * (fps < 40 ? 0.8 : 0.9)); d.goodFor = 0; d.lockUntil = now + 20000; }
+    else if (fps >= 58) { if (++d.goodFor >= 6 && now > d.lockUntil && d.scale < 1) { next = Math.min(1, d.scale * 1.08); d.goodFor = 0; } }
+    else d.goodFor = 0;
+    if (Math.abs(next - d.scale) < 0.01) return;
+    d.scale = next;
+    this.renderer.setPixelRatio(this.quality.pixelRatio * next);
     this.resize();
   }
 
@@ -164,6 +191,7 @@ export class Stage {
 
   render(dt: number) {
     if (this.contextLost) return;
+    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__stage = this; // dev-only: perf probes
     globalUniforms.uTime.value += dt;
     this.flash *= Math.exp(-dt * 7);
     this.satBoost *= Math.exp(-dt * 5);
@@ -178,6 +206,15 @@ export class Stage {
 
   /** Compile every material up-front so the first shot doesn't hitch. */
   warmup(scene: THREE.Scene) {
+    // compile() only visits visible objects: briefly show hidden ones (aim preview, idle effects) too
+    const hidden: THREE.Object3D[] = [];
+    scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+    // compile against the target we actually draw into: with post-processing that's the composer's
+    // render target, whose shader variants differ (no tone mapping / linear output) from the canvas
+    const prev = this.renderer.getRenderTarget();
+    if (this.composer) this.renderer.setRenderTarget(this.composer.renderTarget1);
     this.renderer.compile(scene, this.viewCamera);
+    this.renderer.setRenderTarget(prev);
+    for (const o of hidden) o.visible = false;
   }
 }

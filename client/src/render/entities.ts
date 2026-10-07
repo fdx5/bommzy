@@ -12,8 +12,10 @@ const tmpObj = new THREE.Object3D();
 class Pool {
   readonly mesh: THREE.InstancedMesh;
   n = 0;
-  constructor(geo: THREE.BufferGeometry, mat: THREE.Material, readonly cap: number, scene: THREE.Object3D, readonly outline?: THREE.InstancedMesh) {
+  constructor(geo: THREE.BufferGeometry, mat: THREE.Material, readonly cap: number, scene: THREE.Object3D, readonly outline?: THREE.InstancedMesh, colored = false) {
     this.mesh = new THREE.InstancedMesh(geo, mat, cap);
+    // per-instance colours allocated up-front: the coloured shader variant is compiled at warmup, not on the first shot
+    if (colored) this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
     scene.add(this.mesh);
@@ -112,6 +114,9 @@ export class Entities {
   private claws: Pool;
   readonly aim: AimIndicator;
   private col = new THREE.Color();
+  private static readonly WHITE = new THREE.Color('#FFFFFF');
+  private tmpC = new THREE.Color();
+  private tmpV = new THREE.Vector3();
   /** Last drawn position per projectile, for continuous tracers. */
   private lastPos = new Map<number, { x: number; z: number }>();
   private trailT = 0;
@@ -119,9 +124,9 @@ export class Entities {
   constructor(scene: THREE.Scene, private vfx: VFX) {
     const basic = (c: string) => new THREE.MeshBasicMaterial({ color: c });
     const bulletGeo = new THREE.CapsuleGeometry(0.1, 0.28, 3, 8).rotateZ(Math.PI / 2);
-    this.bullets = new Pool(bulletGeo, basic('#FFFFFF'), 220, scene, new THREE.InstancedMesh(bulletGeo, outlineMaterial('#8A4A00', 0.03), 220));
+    this.bullets = new Pool(bulletGeo, basic('#FFFFFF'), 220, scene, new THREE.InstancedMesh(bulletGeo, outlineMaterial('#8A4A00', 0.03), 220), true);
     const pelletGeo = new THREE.SphereGeometry(0.16, 10, 8);
-    this.pellets = new Pool(pelletGeo, basic('#FFFFFF'), 120, scene, new THREE.InstancedMesh(pelletGeo, outlineMaterial('#7A2410', 0.045), 120));
+    this.pellets = new Pool(pelletGeo, basic('#FFFFFF'), 120, scene, new THREE.InstancedMesh(pelletGeo, outlineMaterial('#7A2410', 0.045), 120), true);
     // two-tone arrow: white shaft, saturated sky-blue head, lemon star fletching (reads on pastel ground)
     const tint = (g: THREE.BufferGeometry, c: string) => {
       const col = new THREE.Color(c), n = g.attributes.position.count, a = new Float32Array(n * 3);
@@ -136,7 +141,7 @@ export class Entities {
       tint(new THREE.OctahedronGeometry(0.17).scale(0.45, 1, 1).translate(-0.36, 0, 0), '#FFD84D'),
       tint(new THREE.OctahedronGeometry(0.17).scale(0.45, 1, 1).rotateX(Math.PI / 2).translate(-0.36, 0, 0), '#FFD84D'),
     ])!;
-    this.arrows = new Pool(arrowGeo, new THREE.MeshBasicMaterial({ vertexColors: true }), 40, scene, new THREE.InstancedMesh(arrowGeo, outlineMaterial('#2E4A7A', 0.035), 40));
+    this.arrows = new Pool(arrowGeo, new THREE.MeshBasicMaterial({ vertexColors: true }), 40, scene, new THREE.InstancedMesh(arrowGeo, outlineMaterial('#2E4A7A', 0.035), 40), true);
     // banana: centred on its spin axis so it whirls like a boomerang
     const rang = bananaGeometry(0, 1, 0.11, true).translate(0, 0, 0.05);
     this.boomerangs = new Pool(rang, toonMaterial({ vertexColors: true, rim: 0.55, spec: 0.5, shadowTint: '#E8C7A0' }), 40, scene, new THREE.InstancedMesh(rang, outlineMaterial('#8A5A12', 0.028), 40));
@@ -176,11 +181,11 @@ export class Entities {
     this.superStars = new Pool(starGeo, toonMaterial({ color: '#FFD84D', rim: 0.9, rimColor: '#FFFFFF', emissive: '#7A4E00' }), 20, scene, new THREE.InstancedMesh(starGeo, outlineMaterial('#B0640A', 0.035), 20));
     // Leo's roar wave: a flat golden crescent facing +x (its travel direction)
     const waveGeo = new THREE.TorusGeometry(1, 0.11, 6, 24, Math.PI * 0.75).rotateZ(-Math.PI * 0.375).rotateX(Math.PI / 2).scale(0.55, 1, 1);
-    this.waves = new Pool(waveGeo, new THREE.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0.9, depthWrite: false }), 40, scene, new THREE.InstancedMesh(waveGeo, outlineMaterial('#B0640A', 0.03), 40));
+    this.waves = new Pool(waveGeo, new THREE.MeshBasicMaterial({ color: '#FFFFFF', transparent: true, opacity: 0.9, depthWrite: false }), 40, scene, new THREE.InstancedMesh(waveGeo, outlineMaterial('#B0640A', 0.03), 40), true);
     this.waves.mesh.renderOrder = 6;
     // Hoya's claw: a thin standing crescent slash
     const clawGeo = new THREE.TorusGeometry(0.32, 0.045, 5, 16, Math.PI * 0.7).rotateZ(-Math.PI * 0.35).rotateX(Math.PI / 2).rotateX(0.5).scale(0.5, 1, 1);
-    this.claws = new Pool(clawGeo, new THREE.MeshBasicMaterial({ color: '#FFFFFF' }), 60, scene, new THREE.InstancedMesh(clawGeo, outlineMaterial('#5B4A7A', 0.03), 60));
+    this.claws = new Pool(clawGeo, new THREE.MeshBasicMaterial({ color: '#FFFFFF' }), 60, scene, new THREE.InstancedMesh(clawGeo, outlineMaterial('#5B4A7A', 0.03), 60), true);
     this.aim = new AimIndicator(scene);
   }
 
@@ -201,7 +206,7 @@ export class Entities {
       if (world.visible(localId, f)) this.shadows.push(x, 0.02, z, 1.6);
       if (f.superKind === 'tornado' && world.time < f.superUntil) {
         const r = superOf(CHAR_BY_ID[f.charId]).radius * 0.8;
-        this.vortices.push(x, 0, z, new THREE.Vector3(r * 1.05, 1.3, r * 1.05), -t * 5);
+        this.vortices.push(x, 0, z, this.tmpV.set(r * 1.05, 1.3, r * 1.05), -t * 5);
         for (let k = 0; k < 3; k++) {
           const a = t * 9 + (k * Math.PI * 2) / 3, h = 0.7 + Math.sin(t * 6 + k) * 0.35;
           const bx = x + Math.cos(a) * r, bz = z + Math.sin(a) * r;
@@ -254,7 +259,7 @@ export class Entities {
       if (zn.kind === 'prison' && !zn.done) {
         const k = Math.min(1, (world.time - zn.start) / 200);
         const wob = 1 + Math.sin(t * 14) * 0.04;
-        this.bigBubbles.push(zn.x, zn.r * 0.55, zn.y, new THREE.Vector3(zn.r * k * wob, zn.r * 0.8 * k / wob, zn.r * k * wob));
+        this.bigBubbles.push(zn.x, zn.r * 0.55, zn.y, this.tmpV.set(zn.r * k * wob, zn.r * 0.8 * k / wob, zn.r * k * wob));
         this.markers.push(zn.x, 0.06, zn.y, zn.r, 0, 0, 0);
       } else if (zn.kind === 'supply' && !zn.done) {
         const left = Math.max(0, (zn.until - world.time) / (zn.until - zn.start));
@@ -328,15 +333,15 @@ export class Entities {
         // widens as it travels; tinted with the lion's crown colour
         const grow = 1 + Math.min(1, p.traveled / p.maxRange) * 0.7;
         const pal = this.ownerColor(world, p);
-        this.col.set(pal[3] ?? pal[0]).lerp(new THREE.Color('#FFFFFF'), 0.35);
-        this.waves.push(x, 0.7, z, new THREE.Vector3(grow, 1 + Math.sin(world.time * 0.04 + p.id) * 0.1, grow * (p.radius / 0.6)), -ang, 0, 0, this.col);
+        this.col.set(pal[3] ?? pal[0]).lerp(Entities.WHITE, 0.35);
+        this.waves.push(x, 0.7, z, this.tmpV.set(grow, 1 + Math.sin(world.time * 0.04 + p.id) * 0.1, grow * (p.radius / 0.6)), -ang, 0, 0, this.col);
         this.waves.push(x - Math.cos(ang) * 0.35, 0.7, z - Math.sin(ang) * 0.35, grow * 0.7, -ang, 0, 0, this.col);
         if (doTrail) { this.vfx.trail(x, 0.7, z, '#FFF5BA', 1.4 * grow, SHAPE.ring, 0.2); this.vfx.trail(x, 0.6, z, '#FFE27A', 0.8, SHAPE.glow, 0.15); }
         break;
       }
       case 'claw': {
         const pal = this.ownerColor(world, p);
-        this.col.set('#FFFFFF').lerp(new THREE.Color(pal[3] ?? '#FF7A8A'), 0.25);
+        this.col.set('#FFFFFF').lerp(this.tmpC.set(pal[3] ?? '#FF7A8A'), 0.25);
         this.claws.push(x, 0.8, z, 1.5, -ang, 0, 0, this.col);
         const lc = this.lastPos.get(p.id);
         if (lc) this.vfx.tracer(lc.x, lc.z, x, z, 0.8, pal[3] ?? '#FF7A8A', 0.3, 0.12, 0.35);

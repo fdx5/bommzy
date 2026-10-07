@@ -1,4 +1,4 @@
-import { CHARACTERS, CHAR_BY_ID, weaponOf, superOf, gadgetOf, radarStats, trophyDelta, xpFor, levelXp, MAPS, MAP_BY_ID, buildMap, randomMapId, ITEMS, ITEM_BY_ID, ITEM_KINDS, KIND_LABEL, SLOTS, SLOT_LABEL, type CharacterId, type Fighter, type MapId, type ItemKind, type ItemSlot, type Equipment } from '@pastel/shared';
+import { CHARACTERS, CHAR_BY_ID, RULES, weaponOf, superOf, gadgetOf, radarStats, trophyDelta, xpFor, levelXp, MAPS, MAP_BY_ID, buildMap, randomMapId, ITEMS, ITEM_BY_ID, ITEM_KINDS, KIND_LABEL, SLOTS, SLOT_LABEL, type CharacterId, type Fighter, type MapId, type ItemKind, type ItemSlot, type Equipment } from '@pastel/shared';
 import { Stage } from './render/stage';
 import { LobbyScene, renderPortraits } from './render/lobby';
 import { guessQuality, type QualityLevel } from './render/quality';
@@ -85,11 +85,14 @@ export class App {
     if (this.hidden) { this.last = now; return; }
     // low-power: cap ~30fps
     if (this.lowPower) { this.frameSkip = !this.frameSkip; if (this.frameSkip) return; }
+    const frameMs = dt * 1000;
     this.last = now;
     dt = Math.min(dt, 0.1);
     if (this.match) this.match.update(dt);
     else this.lobby.update(dt);
     this.stage.render(dt);
+    // hold 60fps in matches by trading render resolution (not when deliberately capped to 30)
+    if (this.match && !this.lowPower) this.stage.adaptResolution(frameMs, performance.now() - now, now);
   };
 
   // ───────────────────────────── screen plumbing
@@ -380,7 +383,7 @@ export class App {
         <div class="stats-row"><span class="chip">❤️ ${t('hp')} ${c.hp}</span><span class="chip">👟 ${t('speed')} ${c.speedLabel}</span></div>
         <div class="ability"><b>🔫 ${w.name}</b><small>${w.desc} · ${w.damage}${w.pelletCount > 1 ? '×' + w.pelletCount : ''}${w.burstCount > 1 ? '×' + w.burstCount : ''}</small></div>
         <div class="ability" style="background:#FFFBE6"><b>⭐ ${s.name}</b><small>${s.desc}</small></div>
-        <div class="ability" style="background:#EFFFF7"><b>✨ ${g.name}</b><small>${g.desc} (×3)</small></div>
+        <div class="ability" style="background:#EFFFF7"><b>✨ ${g.name}</b><small>${g.desc} · ${t('gadgetRule', { n: RULES.gadgetUses, s: RULES.gadgetRechargeMs / 1000 })}</small></div>
         <div><b>${t('skins')}</b><div class="skins">${c.skins.map((sk) => `<div class="skin ${sk.id === selSkin ? 'sel' : ''} ${tro < sk.unlockTrophies ? 'locked' : ''}" data-skin="${sk.id}" title="${sk.name}${tro < sk.unlockTrophies ? ' · ' + t('locked', { n: sk.unlockTrophies }) : ''}" style="background:linear-gradient(135deg, ${sk.palette[0]} 50%, ${sk.palette[1]} 50%)"></div>`).join('')}</div></div>
         ${this.wardrobeHtml(c.id)}
         ${this.memberLocked(c.id)

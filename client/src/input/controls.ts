@@ -86,7 +86,7 @@ export class Controls {
     this.el.moveBase = mk('tc-stick tc-move-base', '<div class="tc-knob"></div>');
     this.el.attack = mk('tc-btn tc-attack', '<div class="tc-ring"></div><div class="tc-knob"></div><span class="tc-ico">🎯</span>');
     this.el.super = mk('tc-btn tc-super', '<svg class="tc-gauge" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="bg"/><circle cx="50" cy="50" r="44" class="fg"/></svg><div class="tc-knob"></div><span class="tc-ico">⭐</span><b class="tc-count tc-stock"></b>');
-    this.el.gadget = mk('tc-btn tc-gadget', '<span class="tc-ico">✨</span><b class="tc-count">3</b>');
+    this.el.gadget = mk('tc-btn tc-gadget', '<svg class="tc-gauge" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" class="bg"/><circle cx="50" cy="50" r="44" class="fg"/></svg><span class="tc-ico">✨</span><b class="tc-count">2</b>');
     this.el.emote = mk('tc-btn tc-emote', '<span class="tc-ico">😊</span>');
     this.el.moveBase.style.opacity = '0';
 
@@ -239,9 +239,12 @@ export class Controls {
     if (badge.textContent !== txt) badge.textContent = txt;
     badge.classList.toggle('on', stock > 0);
   }
-  setGadgetState(uses: number, cooling: boolean) {
-    (this.el.gadget.querySelector('.tc-count') as HTMLElement).textContent = String(uses);
+  /** `recharge` = 0..1 progress toward the next charge (0 when full). */
+  setGadgetState(uses: number, cooling: boolean, recharge = 0) {
+    const cnt = this.el.gadget.querySelector('.tc-count') as HTMLElement;
+    if (cnt.textContent !== String(uses)) cnt.textContent = String(uses);
     this.el.gadget.classList.toggle('disabled', uses <= 0 || cooling);
+    (this.el.gadget.querySelector('.tc-gauge .fg') as SVGCircleElement).style.strokeDashoffset = String(276.5 * (1 - recharge));
   }
 
   private pollGamepad(): { move: THREE.Vector2; aim: THREE.Vector2 | null; fire: boolean } | null {

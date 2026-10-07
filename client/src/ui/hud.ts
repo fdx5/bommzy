@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CHAR_BY_ID, weaponOf, type Fighter, type GameEvent, type World, type CharacterId } from '@pastel/shared';
+import { CHAR_BY_ID, RULES, weaponOf, type Fighter, type GameEvent, type World, type CharacterId } from '@pastel/shared';
 import { t } from './i18n';
 import { themeFor } from '../render/themes';
 
@@ -183,7 +183,8 @@ export class Hud {
     const stock = me.superStock > 0 ? `×${me.superStock + 1}` : '';
     const sb = this.el.superPc.querySelector('.stock') as HTMLElement;
     if (sb.textContent !== stock) sb.textContent = stock;
-    this.setText('gadget', `✨ ×${me.gadgetUses}`, true);
+    const gLeft = me.gadgetUses < RULES.gadgetUses ? Math.ceil((RULES.gadgetRechargeMs - me.gadgetRecharge) / 1000) : 0;
+    this.setText('gadget', `✨ ×${me.gadgetUses}${gLeft ? ` · ⏳${gLeft}s` : ''}`, true);
     this.el.hurt.classList.toggle('on', me.alive && me.hp / me.maxHp < 0.3);
     this.el.poison.classList.toggle('on', !!viewer && viewer.alive && w.inPoison(viewer.x, viewer.y));
 

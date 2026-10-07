@@ -32,6 +32,9 @@ const moved = (g: THREE.BufferGeometry, x: number, y: number, z: number, s: numb
 };
 
 /** Instanced prop with optional outline hull and per-instance dither fade. */
+/** Own shadow-depth material per instanced caster (stable shader program in the shadow pass). */
+const depthMat = () => new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+
 class Props {
   readonly mesh: THREE.InstancedMesh;
   readonly outline?: THREE.InstancedMesh;
@@ -450,6 +453,7 @@ export class Environment {
       });
       if (!items.length) { tr.mesh.count = 0; cn.mesh.count = 0; if (tr.outline) tr.outline.count = 0; if (cn.outline) cn.outline.count = 0; }
       tr.mesh.castShadow = cn.mesh.castShadow = true;
+      tr.mesh.customDepthMaterial = depthMat(); cn.mesh.customDepthMaterial = depthMat();
       tr.finish(); cn.finish();
       tr.add(this.root); cn.add(this.root);
       this.trees.push(tr); this.treeCanopies.push(cn);
@@ -510,6 +514,7 @@ export class Environment {
       this.rocks.color(i, new THREE.Color(t, t * (0.97 + this.rng.next() * 0.05), t * 1.02));
     });
     this.rocks.mesh.castShadow = true;
+    this.rocks.mesh.customDepthMaterial = depthMat();
     this.rocks.finish();
     this.rocks.add(this.root);
     // rubble left behind by destroyed rocks
@@ -548,6 +553,7 @@ export class Environment {
     this.crates.mesh.count = 0;
     if (this.crates.outline) this.crates.outline.count = 0;
     this.crates.mesh.castShadow = true;
+    this.crates.mesh.customDepthMaterial = depthMat();
     for (const o of this.map.obstacles) if (o.type === 'crate') this.addCrate(o);
     this.crates.add(this.root);
   }

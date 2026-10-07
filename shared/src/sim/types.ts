@@ -99,6 +99,8 @@ export interface Fighter {
   // gadget
   gadgetUses: number;
   gadgetCd: number;
+  /** ms of progress toward the next gadget charge */
+  gadgetRecharge: number;
   shieldUntil: number;
   dashUntil: number; dashVx: number; dashVy: number;
   /** tiger pounce: lands (and slams) at this time; 0 = not pouncing */
@@ -195,6 +197,7 @@ export type GameEvent =
   | { type: 'pickupSpawn'; pickupId: number; kind: PickupKind; x: number; y: number }
   | { type: 'superReady'; id: string }
   | { type: 'gadget'; id: string; kind: string; x: number; y: number }
+  | { type: 'gadgetReady'; id: string; uses: number }
   | { type: 'hide'; id: string; x: number; y: number }
   | { type: 'unhide'; id: string; x: number; y: number }
   | { type: 'reveal'; id: string }

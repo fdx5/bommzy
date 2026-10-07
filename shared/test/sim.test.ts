@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   World, buildMeadow, validateData, balanceReport, SUPER_CHARGE_RATE, segCircle, segAABB, emptyInput, BUSH, isVisibleTo,
-  clusterBushes, CHARACTERS, type PlayerSlot, type MatchConfig, type BushDef,
+  clusterBushes, CHARACTERS, RULES, type PlayerSlot, type MatchConfig, type BushDef,
 } from '../src';
 
 const DT = 1 / 60;
@@ -131,6 +131,27 @@ describe('weapons', () => {
     expect(fa.pounceAt).toBe(0);
     expect(fa.x).toBeGreaterThan(4.5);
     expect(fb.hp).toBeLessThan(hp0 - 1000);
+  });
+
+  it('gadget charges refill one every 15s up to the max', () => {
+    const { w, fa } = duel('toto', 'boogie', 20);
+    expect(fa.gadgetUses).toBe(RULES.gadgetUses);
+    const use = () => { w.setInput('a', { ...emptyInput(), gadget: true }); w.step(DT); w.setInput('a', emptyInput()); };
+    use();
+    expect(fa.gadgetUses).toBe(RULES.gadgetUses - 1);
+    for (let i = 0; i < Math.ceil(RULES.gadgetCooldownMs / 1000 / DT) + 2; i++) w.step(DT);
+    use();
+    expect(fa.gadgetUses).toBe(RULES.gadgetUses - 2);
+    use(); // cooldown + no charges: nothing happens
+    expect(fa.gadgetUses).toBe(0);
+    const ready = () => w.drainEvents().filter((e) => e.type === 'gadgetReady').length;
+    ready();
+    let got = 0;
+    for (let i = 0; i < Math.ceil(RULES.gadgetRechargeMs * 2.05 / 1000 / DT); i++) { w.step(DT); got += ready(); }
+    expect(fa.gadgetUses).toBe(RULES.gadgetUses);
+    expect(got).toBe(2);
+    for (let i = 0; i < Math.ceil(RULES.gadgetRechargeMs / 1000 / DT); i++) w.step(DT);
+    expect(fa.gadgetUses).toBe(RULES.gadgetUses); // never above the max
   });
 
   it('normal attacks never break rocks; supers do', () => {

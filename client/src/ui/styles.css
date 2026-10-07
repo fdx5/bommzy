@@ -318,6 +318,8 @@ input[type=range] { accent-color: var(--lav-d); width: 9em; height: 28px; }
 .tc-super .tc-stock { position: absolute; right: -4px; bottom: -4px; display: none; place-items: center; height: 1.4em; min-width: 1.6em; padding: 0 .3em; font-size: .8em; font-weight: 800; color: #7a4e00; background: #ffe27a; border: 2px solid #b0640a; border-radius: 1em; }
 .tc-super .tc-stock.on { display: grid; }
 .tc-gadget.disabled { filter: grayscale(1) opacity(.5); }
+.tc-gadget .tc-gauge { inset: -6px; width: calc(100% + 12px); height: calc(100% + 12px); }
+.tc-gadget .tc-gauge .fg { stroke: #7ED9B6; }
 .tc-emote { left: calc(3% + var(--safe-l)); top: calc(30% + var(--safe-t)); width: calc(var(--stick) * .8); height: calc(var(--stick) * .8); background: #fff; }
 .tc-emote .tc-ico { font-size: calc(var(--stick) * .32); }
 .left-handed .tc-move-zone { left: auto; right: 0; }
