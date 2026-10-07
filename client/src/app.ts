@@ -8,7 +8,7 @@ import { Match, type MatchResult } from './game/match';
 import { loadProfile, saveProfile, totalTrophies, addXp, recordMatch, favoriteCharacter, type Profile } from './game/profile';
 import { t, setLang, getLang } from './ui/i18n';
 import { escapeHtml, drawMapPreview } from './ui/hud';
-import { submitResult, fetchLeaderboard, session, login, register, logout, fetchMe, buyItem, equipItem, fetchLedger, saveProgress, fetchHistory, type Account } from './game/api';
+import { submitResult, fetchLeaderboard, session, login, register, logout, fetchMe, buyItem, equipItem, fetchLedger, saveProgress, fetchHistory, fetchRecent, type Account } from './game/api';
 import { itemThumb, warmItemThumbs } from './render/thumbs';
 
 type Screen = 'title' | 'login' | 'lobby' | 'chars' | 'shop' | 'mm' | 'match' | 'retire' | 'results';
@@ -840,43 +840,125 @@ export class App {
 
   private openRecords() {
     const p = this.profile;
-    const weekAgo = Date.now() - 7 * 864e5;
+    const u = this.account?.user;
+    const stats = u ? { games: u.games, wins: u.wins, best: u.bestScore, kills: u.kills } : { games: p.games, wins: p.wins, best: p.bestScore, kills: p.kills };
+    const charName = CHAR_BY_ID[p.selected].displayName;
+    const pic = (id: string) => this.portraits[id as CharacterId] ? `<img src="${this.portraits[id as CharacterId]}" alt="">` : '';
+    const tabs: { id: string; icon: string; label: string; desc: string }[] = [
+      { id: 'o-total', icon: '⭐', label: t('onlineAll'), desc: t('lbDescTotal') },
+      { id: 'o-all', icon: '🔥', label: t('onlineBest'), desc: t('lbDescBest') },
+      { id: 'o-recent', icon: '🕒', label: t('onlineRecent'), desc: t('lbDescRecent') },
+      { id: 'o-weekly', icon: '📅', label: t('onlineWeekly'), desc: t('lbDescWeekly') },
+      { id: 'o-char', icon: pic(p.selected) || '🎭', label: t('onlineChar', { name: charName }), desc: t('lbDescChar', { name: charName }) },
+      { id: 'mine', icon: '👤', label: t('myRecords'), desc: t('lbDescMine') },
+    ];
     const m = this.modal(`<h2>🏅 ${t('records')}</h2>
-      <div class="stat-grid"><div><b>${p.games}</b>${t('games')}</div><div><b>${p.wins}</b>${t('wins')}</div><div><b>${p.bestScore}</b>${t('best')}</div><div><b>${p.kills}</b>${t('kills')}</div></div>
-      <div class="tabs">
-        <button class="btn mint" data-tab="o-all">${t('onlineAll')}</button><button class="btn white" data-tab="o-weekly">${t('onlineWeekly')}</button><button class="btn white" data-tab="o-char">${t('onlineChar', { name: CHAR_BY_ID[p.selected].displayName })}</button>
-        <button class="btn white" data-tab="all">📱 ${t('myRecords')}</button>
-      </div>
-      <div class="lb"></div>`);
-    const lb = m.el.querySelector('.lb') as HTMLElement;
-    const renderOnline = async (tab: string) => {
-      lb.innerHTML = `<div class="empty">${t('lbLoading')}</div>`;
-      const list = await fetchLeaderboard(tab === 'o-weekly' ? 'weekly' : 'all', tab === 'o-char' ? p.selected : undefined);
-      if (!list) { lb.innerHTML = `<div class="empty">${t('lbOffline')}</div>`; return; }
-      if (!list.length) { lb.innerHTML = `<div class="empty">${t('lbEmpty')}</div>`; return; }
-      lb.innerHTML = list.map((r) => `<div class="lb-row ${r.me ? 'me' : ''}"><span class="rk">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank}</span><span>${this.portraits[r.charId as CharacterId] ? `<img src="${this.portraits[r.charId as CharacterId]}" style="width:1.6em;vertical-align:middle">` : ''} ${escapeHtml(r.nickname)} <small style="color:var(--ink-soft)">${MAP_BY_ID[r.mapId as MapId]?.emoji ?? ''} #${r.place} · ⚔️${r.kills}</small></span><b>⭐${r.score}</b><small style="color:var(--ink-soft)">${new Date(r.createdAt).toLocaleDateString()}</small></div>`).join('');
+      <div class="stat-grid"><div><b>${stats.games.toLocaleString()}</b>${t('games')}</div><div><b>${stats.wins.toLocaleString()}</b>${t('wins')}</div><div><b>⭐${stats.best.toLocaleString()}</b>${t('best')}</div><div><b>${stats.kills.toLocaleString()}</b>${t('kills')}</div></div>
+      <div class="rec-tabs" role="tablist">${tabs.map((x) => `<button role="tab" data-tab="${x.id}" class="${x.id === 'mine' ? 'sep' : ''}"><i>${x.icon}</i>${escapeHtml(x.label)}</button>`).join('')}</div>
+      <div class="rec-desc"></div>
+      <div class="lb rec-list"></div>
+      <button class="rec-me" hidden></button>`);
+    m.el.querySelector('.modal')!.classList.add('records');
+    const lb = m.el.querySelector('.rec-list') as HTMLElement;
+    const desc = m.el.querySelector('.rec-desc') as HTMLElement;
+    const meBar = m.el.querySelector('.rec-me') as HTMLButtonElement;
+
+    const medal = (n: number) => `<span class="rk${n <= 3 ? ` r${n}` : ''}">${n}</span>`;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dateOf = (ms: number) => { const d = new Date(ms); return `${pad(d.getMonth() + 1)}.${pad(d.getDate())}`; };
+    const timeOf = (ms: number) => { const d = new Date(ms); return `${dateOf(ms)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+    const ago = (ms: number) => {
+      const s = (Date.now() - ms) / 1000;
+      if (s < 60) return t('agoNow');
+      if (s < 3600) return t('agoMin', { n: Math.floor(s / 60) });
+      if (s < 86400) return t('agoHour', { n: Math.floor(s / 3600) });
+      return '';
     };
-    const renderMine = async () => {
-      lb.innerHTML = `<div class="empty">${t('lbLoading')}</div>`;
-      const list = await fetchHistory();
-      if (!list) { lb.innerHTML = `<div class="empty">${t('lbOffline')}</div>`; return; }
-      if (!list.length) { lb.innerHTML = `<div class="empty">${t('noRecords')}</div>`; return; }
-      lb.innerHTML = list.map((r, i) => `<div class="lb-row"><span class="rk">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><span>${this.portraits[r.charId as CharacterId] ? `<img src="${this.portraits[r.charId as CharacterId]}" style="width:1.6em;vertical-align:middle">` : ''} ${MAP_BY_ID[r.mapId as MapId]?.emoji ?? ''} <small style="color:var(--ink-soft)">#${r.place} · ⚔️${r.kills}${r.gold ? ` · 💰${r.gold.toLocaleString()}` : ''}</small></span><b>⭐${r.score}</b><small style="color:var(--ink-soft)">${new Date(r.createdAt).toLocaleDateString()}</small></div>`).join('');
+    const row = (o: { rank: string; charId: string; name: string; tag?: string; sub: string; score: number; when: string; me?: boolean; top?: number }) =>
+      `<div class="lb-row${o.me ? ' me' : ''}${o.top && o.top <= 3 ? ` top${o.top}` : ''}">${o.rank}<span class="pf">${pic(o.charId)}</span>`
+      + `<span class="who"><b>${escapeHtml(o.name)}${o.tag ? ` <em>${o.tag}</em>` : ''}</b><small>${o.sub}</small></span>`
+      + `<span class="sc"><b>⭐${o.score.toLocaleString()}</b><small>${o.when}</small></span></div>`;
+    const mapIcon = (id: string) => MAP_BY_ID[id as MapId]?.emoji ?? '';
+    const empty = (msg: string, icon = '🌱') => `<div class="empty"><span>${icon}</span>${msg}</div>`;
+    const skeleton = `<div class="rec-skel">${'<div></div>'.repeat(6)}</div>`;
+
+    let seq = 0;
+    const show = (html: string, myIdx = -1, myLabel = '') => {
+      lb.innerHTML = html;
+      lb.scrollTop = 0;
+      meBar.hidden = !myLabel;
+      meBar.innerHTML = myLabel;
+      meBar.disabled = myIdx < 0;
+      meBar.onclick = myIdx < 0 ? null : () => {
+        const el = lb.querySelectorAll<HTMLElement>('.lb-row')[myIdx];
+        if (!el) return;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      };
     };
-    const render = (tab: string) => {
-      if (tab.startsWith('o-')) { void renderOnline(tab); return; }
-      if (this.account) { void renderMine(); return; }
-      let list = p.records;
-      if (tab === 'weekly') list = list.filter((r) => r.date >= weekAgo);
-      if (tab === 'char') list = list.filter((r) => r.charId === favoriteCharacter(p));
-      lb.innerHTML = list.length ? list.slice(0, 100).map((r, i) => `<div class="lb-row"><span class="rk">${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><span>${this.portraits[r.charId] ? `<img src="${this.portraits[r.charId]}" style="width:1.6em;vertical-align:middle">` : ''} ${escapeHtml(r.nickname)} <small style="color:var(--ink-soft)">#${r.place} · ⚔️${r.kills}</small></span><b>⭐${r.score}</b><small style="color:var(--ink-soft)">${new Date(r.date).toLocaleDateString()}</small></div>`).join('') : `<div class="empty">${t('noRecords')}</div>`;
+    const myRankLabel = (idx: number, score: number) => idx < 0
+      ? (this.account ? `<span>👤 ${t('lbNotRanked')}</span>` : '')
+      : `<span>👤 ${t('lbMyRank', { n: idx + 1 })}</span><b>⭐${score.toLocaleString()}</b><small>${t('lbJump')} ↓</small>`;
+
+    const load = async (tab: string) => {
+      const my = ++seq;
+      show(skeleton);
+      if (tab === 'o-recent') {
+        const list = await fetchRecent();
+        if (my !== seq) return;
+        if (!list) return show(empty(t('lbOffline'), '📡'));
+        if (!list.length) return show(empty(t('lbEmpty')));
+        const idx = list.findIndex((r) => r.me);
+        show(list.map((r) => row({
+          rank: `<span class="rk place${r.place === 1 ? ' r1' : ''}">${t('place', { n: r.place })}</span>`, charId: r.charId, name: r.nickname, tag: r.guest ? t('guest') : undefined,
+          sub: `${mapIcon(r.mapId)} ⚔️${r.kills}${ago(r.createdAt) ? ` · ${ago(r.createdAt)}` : ''}`, score: r.score, when: timeOf(r.createdAt), me: r.me,
+        })).join(''), idx, idx < 0 ? '' : `<span>👤 ${t('lbMyRecent')}</span><small>${t('lbJump')} ↓</small>`);
+        return;
+      }
+      if (tab.startsWith('o-')) {
+        const total = tab === 'o-total';
+        const list = await fetchLeaderboard(total ? 'total' : tab === 'o-weekly' ? 'weekly' : 'all', tab === 'o-char' ? p.selected : undefined);
+        if (my !== seq) return;
+        if (!list) return show(empty(t('lbOffline'), '📡'));
+        if (!list.length) return show(empty(t('lbEmpty'), '🏆'));
+        const idx = list.findIndex((r) => r.me);
+        show(list.map((r) => row({
+          rank: medal(r.rank), charId: r.charId, name: r.nickname, me: r.me, top: r.rank, score: r.score,
+          sub: total ? `🎮${r.games ?? 0} · 🏆${r.wins ?? 0} · ⚔️${r.kills}` : `${mapIcon(r.mapId)} ${t('place', { n: r.place })} · ⚔️${r.kills}`,
+          when: dateOf(r.createdAt),
+        })).join(''), idx, myRankLabel(idx, idx < 0 ? 0 : list[idx].score));
+        return;
+      }
+      if (this.account) {
+        const list = await fetchHistory();
+        if (my !== seq) return;
+        if (!list) return show(empty(t('lbOffline'), '📡'));
+        if (!list.length) return show(empty(t('noRecords')));
+        show(list.map((r) => row({
+          rank: `<span class="rk place${r.place === 1 ? ' r1' : ''}">${t('place', { n: r.place })}</span>`, charId: r.charId,
+          name: `${mapIcon(r.mapId)} ${(getLang() === 'en' ? MAP_BY_ID[r.mapId as MapId]?.nameEn : MAP_BY_ID[r.mapId as MapId]?.name) ?? r.mapId}`, score: r.score,
+          sub: `⚔️${r.kills}${r.gold ? ` · 💰${r.gold.toLocaleString()}` : ''}${ago(r.createdAt) ? ` · ${ago(r.createdAt)}` : ''}`, when: timeOf(r.createdAt),
+        })).join(''));
+        return;
+      }
+      show(p.records.length ? p.records.slice(0, 100).map((r, i) => row({
+        rank: medal(i + 1), charId: r.charId, name: r.nickname, top: i + 1, score: r.score,
+        sub: `${t('place', { n: r.place })} · ⚔️${r.kills}`, when: timeOf(r.date),
+      })).join('') : empty(t('noRecords')));
     };
-    m.el.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => {
-      m.el.querySelectorAll('[data-tab]').forEach((x) => { x.classList.remove('mint'); x.classList.add('white'); });
-      b.classList.add('mint'); b.classList.remove('white');
-      render(b.dataset.tab!);
-    }));
-    render('o-all');
+
+    const btns = [...m.el.querySelectorAll<HTMLElement>('[data-tab]')];
+    const select = (id: string) => {
+      const tab = tabs.find((x) => x.id === id) ?? tabs[0];
+      btns.forEach((b) => { const on = b.dataset.tab === tab.id; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); if (on) b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); });
+      desc.textContent = tab.desc;
+      try { localStorage.setItem('pb.recTab', tab.id); } catch { /* storage unavailable */ }
+      void load(tab.id);
+    };
+    btns.forEach((b) => b.addEventListener('click', () => { audio.play('click'); select(b.dataset.tab!); }));
+    let last = 'o-total';
+    try { last = localStorage.getItem('pb.recTab') ?? last; } catch { /* storage unavailable */ }
+    select(last);
   }
 }
 

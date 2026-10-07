@@ -76,9 +76,12 @@ export const submitResult = (r: ResultSubmit) => call<SubmitResponse>('/api/resu
 export interface HistoryEntry { charId: string; mapId: string; place: number; kills: number; assists: number; damage: number; score: number; gold: number; createdAt: number }
 export async function fetchHistory() { return (await call<{ entries: HistoryEntry[] }>('/api/history'))?.entries ?? null; }
 
-export interface LeaderEntry { rank: number; nickname: string; score: number; charId: string; mapId: string; place: number; kills: number; createdAt: number; me: boolean }
-export async function fetchLeaderboard(scope: 'all' | 'weekly', char?: string) {
+export interface LeaderEntry { rank: number; nickname: string; score: number; charId: string; mapId: string; place: number; kills: number; createdAt: number; me: boolean; games?: number; wins?: number }
+export async function fetchLeaderboard(scope: 'all' | 'weekly' | 'total', char?: string) {
   const q = new URLSearchParams({ scope, limit: '100' });
   if (char) q.set('char', char);
   return (await call<{ entries: LeaderEntry[] }>(`/api/leaderboard?${q}`))?.entries ?? null;
 }
+
+export interface RecentEntry { nickname: string; guest: boolean; charId: string; mapId: string; place: number; kills: number; score: number; createdAt: number; me: boolean }
+export async function fetchRecent() { return (await call<{ entries: RecentEntry[] }>('/api/recent?limit=100'))?.entries ?? null; }

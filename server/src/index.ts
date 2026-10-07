@@ -288,12 +288,29 @@ async function guestResult(c: Context, b: z.infer<typeof ResultBody>, now: numbe
   return c.json({ ok: true, guest: true, goldEarned: 0 });
 }
 
-/** Best result per account: scope = all | weekly, optional character filter. */
+/** Best result per account: scope = all | weekly, optional character filter. scope = total: cumulative stars per account. */
 app.get('/api/leaderboard', async (c) => {
-  const scope = c.req.query('scope') === 'weekly' ? 'weekly' : 'all';
+  const q = c.req.query('scope');
+  const scope = q === 'weekly' ? 'weekly' : q === 'total' ? 'total' : 'all';
   const char = c.req.query('char');
   const limit = Math.min(100, Math.max(1, Number(c.req.query('limit') ?? 50) || 50));
   const me = await authed(c);
+  if (scope === 'total') {
+    const rs = await db.execute({
+      sql: `SELECT r.user_id AS uid, u.username AS nickname, SUM(r.score) AS score, COUNT(*) AS games, SUM(r.place = 1) AS wins,
+                   SUM(r.kills) AS kills, COALESCE(u.selected_character, MAX(r.character_id)) AS charId, MAX(r.created_at) AS createdAt
+            FROM game_results r JOIN users u ON u.id = r.user_id
+            GROUP BY r.user_id ORDER BY score DESC, createdAt ASC LIMIT ?`,
+      args: [limit],
+    });
+    return c.json({
+      scope, char: null,
+      entries: rs.rows.map((r, i) => ({
+        rank: i + 1, nickname: r.nickname, score: int(r.score), charId: r.charId, mapId: '', place: 0, kills: int(r.kills),
+        games: int(r.games), wins: int(r.wins), createdAt: int(r.createdAt), me: !!me && int(r.uid) === me.id,
+      })),
+    });
+  }
   const where: string[] = [];
   const args: (string | number)[] = [];
   if (scope === 'weekly') { where.push('r.created_at >= ?'); args.push(Date.now() - WEEK_MS); }
@@ -312,6 +329,29 @@ app.get('/api/leaderboard', async (c) => {
     entries: rs.rows.map((r, i) => ({
       rank: i + 1, nickname: r.nickname, score: int(r.score), charId: r.charId, mapId: r.mapId,
       place: int(r.place), kills: int(r.kills), createdAt: int(r.createdAt), me: !!me && int(r.uid) === me.id,
+    })),
+  });
+});
+
+/** Latest matches of everyone (accounts + guests), newest first. */
+app.get('/api/recent', async (c) => {
+  const limit = Math.min(200, Math.max(1, Number(c.req.query('limit') ?? 100) || 100));
+  const me = await authed(c);
+  const rs = await db.execute({
+    sql: `SELECT * FROM (
+            SELECT r.user_id AS uid, u.username AS nickname, 0 AS guest, r.character_id AS charId, r.map_id AS mapId, r.place AS place,
+                   r.kills AS kills, r.score AS score, r.created_at AS createdAt
+            FROM game_results r JOIN users u ON u.id = r.user_id
+            UNION ALL
+            SELECT NULL, p.nickname, 1, m.character_id, m.map_id, m.place, m.kills, m.score, m.created_at
+            FROM match_results m JOIN players p ON p.id = m.player_id
+          ) ORDER BY createdAt DESC LIMIT ?`,
+    args: [limit],
+  });
+  return c.json({
+    entries: rs.rows.map((r) => ({
+      nickname: r.nickname, guest: int(r.guest) === 1, charId: r.charId, mapId: r.mapId, place: int(r.place), kills: int(r.kills),
+      score: int(r.score), createdAt: int(r.createdAt), me: !!me && r.uid != null && int(r.uid) === me.id,
     })),
   });
 });

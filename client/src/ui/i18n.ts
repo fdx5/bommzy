@@ -68,7 +68,7 @@ const ko: Dict = {
   gReward: '경기 보상',
   gPurchase: '아이템 구매',
   gGrant: '지급',
-  online: '온라인', myRecords: '내 기록', onlineAll: '🌐 전체', onlineWeekly: '🌐 주간', onlineChar: '🌐 {name}', lbOffline: '온라인 랭킹 서버에 연결할 수 없어요. 내 기록만 볼 수 있어요.', lbLoading: '랭킹 불러오는 중…', onlineRank: '🌐 온라인 {n}위', lbEmpty: '아직 등록된 기록이 없어요. 첫 1위를 차지해 보세요!',
+  online: '온라인', myRecords: '내 기록', onlineAll: '전체', onlineBest: '고점', onlineRecent: '이력', lbDescTotal: '모든 경기의 별점을 더한 누적 순위', lbDescBest: '한 판 최고 별점 순위', lbDescRecent: '모든 플레이어의 최근 경기 100건', lbDescWeekly: '최근 7일 동안의 최고 별점 순위', lbDescChar: '{name}(으)로 낸 최고 별점 순위', lbDescMine: '내가 플레이한 경기 기록', lbMyRank: '내 순위 {n}위', lbNotRanked: '아직 순위에 없어요 — 한 판 해볼까요?', lbMyRecent: '내 최근 경기', lbJump: '보기', agoNow: '방금', agoMin: '{n}분 전', agoHour: '{n}시간 전', onlineWeekly: '주간', onlineChar: '{name}', lbOffline: '온라인 랭킹 서버에 연결할 수 없어요. 내 기록만 볼 수 있어요.', lbLoading: '랭킹 불러오는 중…', onlineRank: '🌐 온라인 {n}위', lbEmpty: '아직 등록된 기록이 없어요. 첫 1위를 차지해 보세요!',
   map: '맵', mapSelect: '맵 선택', randomMap: '랜덤 맵', randomMapDesc: '매 판 다른 맵에서!', tapToPick: '눌러서 선택',
   emote0: '😆', emote1: '😠', emote2: 'GG', emote3: '❤️', spectating: '관전 중: {name}', exitMatch: '정말 나갈까요? 이번 판은 패배로 기록돼요.',
 };
@@ -141,7 +141,7 @@ const en: Dict = {
   gReward: 'Match reward',
   gPurchase: 'Purchase',
   gGrant: 'Grant',
-  online: 'Online', myRecords: 'My records', onlineAll: '🌐 All-time', onlineWeekly: '🌐 Weekly', onlineChar: '🌐 {name}', lbOffline: 'Can’t reach the online leaderboard. Showing your local records.', lbLoading: 'Loading leaderboard…', onlineRank: '🌐 Global #{n}', lbEmpty: 'No records yet. Grab the first #1!',
+  online: 'Online', myRecords: 'My records', onlineAll: 'All-time', onlineBest: 'Best', onlineRecent: 'History', lbDescTotal: 'Total stars across every match', lbDescBest: 'Best single-match score', lbDescRecent: 'Latest 100 matches from everyone', lbDescWeekly: 'Best score in the last 7 days', lbDescChar: 'Best score with {name}', lbDescMine: 'Your match history', lbMyRank: 'You: #{n}', lbNotRanked: 'Not ranked yet — play a match!', lbMyRecent: 'Your latest match', lbJump: 'Show', agoNow: 'just now', agoMin: '{n}m ago', agoHour: '{n}h ago', onlineWeekly: 'Weekly', onlineChar: '{name}', lbOffline: 'Can’t reach the online leaderboard. Showing your local records.', lbLoading: 'Loading leaderboard…', onlineRank: '🌐 Global #{n}', lbEmpty: 'No records yet. Grab the first #1!',
   map: 'Map', mapSelect: 'Choose a map', randomMap: 'Random', randomMapDesc: 'A different arena every match!', tapToPick: 'Tap to pick',
   emote0: '😆', emote1: '😠', emote2: 'GG', emote3: '❤️', spectating: 'Spectating {name}', exitMatch: 'Leave? This match counts as a loss.',
 };

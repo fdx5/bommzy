@@ -13,7 +13,14 @@ export interface AimPreview { active: boolean; isSuper: boolean; angle: number; 
 
 type StickMode = 'attack' | 'super' | 'gadget';
 
-interface Drag { id: number; ox: number; oy: number; x: number; y: number; manual: boolean; t0: number; mode: StickMode; cancelled: boolean }
+interface Drag {
+  id: number; ox: number; oy: number; x: number; y: number; manual: boolean; t0: number; mode: StickMode; cancelled: boolean;
+  /** started from the last fired direction (virtual stick origin offset so the thumb sits on that aim) */
+  resumed: boolean; sx: number; sy: number;
+}
+type Aim = { angle: number; dist: number };
+/** Hold this long without moving and release → fire along the resumed (last) aim instead of auto-aim. */
+const RESUME_HOLD_MS = 180;
 
 /** Unified keyboard/mouse · twin-stick touch · gamepad input. */
 export class Controls {
@@ -41,7 +48,9 @@ export class Controls {
   private el: Record<string, HTMLElement> = {};
   private moveVec = new THREE.Vector2();
   private dragAim = { angle: 0, dist: 0 };
-  private releaseAim: { angle: number; dist: number } | null = null;
+  private releaseAim: Aim | null = null;
+  /** last manually fired aim per stick, so the next drag starts from it instead of re-centring */
+  private lastAim: Partial<Record<StickMode, Aim>> = {};
   // gamepad
   private padFireHeld = false;
   private padPrev: boolean[] = [];
@@ -117,7 +126,17 @@ export class Controls {
         if (this.drag) return;
         el.setPointerCapture(e.pointerId);
         const r = el.getBoundingClientRect();
-        this.drag = { id: e.pointerId, ox: r.left + r.width / 2, oy: r.top + r.height / 2, x: e.clientX, y: e.clientY, manual: false, t0: performance.now(), mode, cancelled: false };
+        let ox = r.left + r.width / 2, oy = r.top + r.height / 2;
+        const last = mode === 'gadget' ? undefined : this.lastAim[mode];
+        if (last) {
+          // put the virtual stick origin behind the thumb so the stick already points along the last shot
+          const R = this.settings.stickSize, dead = R * 0.22;
+          const L = dead + Math.max(0.08, Math.min(1, last.dist / this.settings.aimSensitivity)) * (R - dead);
+          ox = e.clientX - Math.cos(last.angle) * L; oy = e.clientY - Math.sin(last.angle) * L;
+          this.dragAim.angle = last.angle; this.dragAim.dist = last.dist;
+          this.updateKnob(el, Math.cos(last.angle) * Math.min(L, R) * 0.8, Math.sin(last.angle) * Math.min(L, R) * 0.8);
+        }
+        this.drag = { id: e.pointerId, ox, oy, x: e.clientX, y: e.clientY, manual: false, t0: performance.now(), mode, cancelled: false, resumed: !!last, sx: e.clientX, sy: e.clientY };
         el.classList.add('pressed');
         if (mode === 'gadget') { this.pendingGadget = true; this.vibrate(15); }
       }, opt);
@@ -126,7 +145,9 @@ export class Controls {
         d.x = e.clientX; d.y = e.clientY;
         const dx = d.x - d.ox, dy = d.y - d.oy, len = Math.hypot(dx, dy);
         const dead = this.settings.stickSize * 0.22;
-        if (len > dead) { d.manual = true; d.cancelled = false; }
+        // resumed drags: only count as manual once the thumb actually moves (a still tap stays auto-aim)
+        const moved = !d.resumed || Math.hypot(d.x - d.sx, d.y - d.sy) > 6;
+        if (len > dead) { if (moved) d.manual = true; d.cancelled = false; }
         else if (d.manual) d.cancelled = true; // dragged back to centre → cancel
         const R = this.settings.stickSize;
         const k = Math.min(1, len / R);
@@ -140,7 +161,9 @@ export class Controls {
         el.classList.remove('pressed', 'cancel');
         this.updateKnob(el, 0, 0);
         if (d.mode === 'gadget' || d.cancelled) return;
+        if (!d.manual && d.resumed && performance.now() - d.t0 >= RESUME_HOLD_MS) d.manual = true; // held still → fire along last aim
         this.releaseAim = d.manual ? { ...this.dragAim } : null;
+        if (d.manual) this.lastAim[d.mode] = { ...this.dragAim };
         if (d.mode === 'attack') { if (d.manual) this.pendingFire = true; else { this.pendingFire = true; this.pendingAuto = true; } }
         else { this.pendingSuper = true; this.pendingSuperAuto = !d.manual; }
       };
@@ -289,8 +312,9 @@ export class Controls {
   }
 
   aimPreview(): AimPreview {
-    if (this.drag && this.drag.manual && this.drag.mode !== 'gadget') {
-      return { active: true, isSuper: this.drag.mode === 'super', angle: this.dragAim.angle, dist: this.dragAim.dist, strength: this.drag.cancelled ? 0.25 : 1 };
+    const d = this.drag;
+    if (d && d.mode !== 'gadget' && (d.manual || (d.resumed && performance.now() - d.t0 >= RESUME_HOLD_MS))) {
+      return { active: true, isSuper: d.mode === 'super', angle: this.dragAim.angle, dist: this.dragAim.dist, strength: d.cancelled ? 0.25 : 1 };
     }
     if (this.padAim.lengthSq() > 0.1 && navigator.getGamepads?.()?.some((p) => p?.connected)) {
       return { active: true, isSuper: false, angle: Math.atan2(this.padAim.y, this.padAim.x), dist: Math.min(1, this.padAim.length()), strength: 0.8 };
@@ -302,7 +326,7 @@ export class Controls {
   get mouseWorld() { return this.aimWorld; }
 
   reset() {
-    this.keys.clear(); this.mouseDown = false; this.superHeld = false; this.drag = null; this.moveStick = null; this.moveVec.set(0, 0);
+    this.keys.clear(); this.mouseDown = false; this.superHeld = false; this.drag = null; this.moveStick = null; this.moveVec.set(0, 0); this.lastAim = {};
     this.pendingFire = this.pendingAuto = this.pendingSuper = this.pendingGadget = false; this.pendingEmote = -1;
   }
 }
