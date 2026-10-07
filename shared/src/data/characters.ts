@@ -96,7 +96,7 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'leo', displayName: '레오', displayNameEn: 'Leo', concept: '황금빛 아기 사자, 풍성한 갈기와 작은 왕관',
-    role: '탱커·돌격', roleEn: 'Tank', hp: 3900, moveSpeed: 4.7, speedLabel: '보통',
+    role: '탱커·돌격', roleEn: 'Tank', hp: 3600, moveSpeed: 4.7, speedLabel: '보통',
     hitboxRadius: 0.62, weaponId: 'roarWave', superId: 'kingsRoar', gadgetId: 'maneGuard',
     colorPalette: ['#FFD98A', '#F2A65A', '#FFF5E1', '#FFE27A'],
     memberOnly: true,
@@ -108,7 +108,7 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'hoya', displayName: '호야', displayNameEn: 'Hoya', concept: '주황 아기 호랑이, 이마의 王 무늬와 빨간 머리띠',
-    role: '암살자·기습', roleEn: 'Assassin', hp: 2900, moveSpeed: 5.8, speedLabel: '빠름',
+    role: '암살자·기습', roleEn: 'Assassin', hp: 3300, moveSpeed: 5.8, speedLabel: '빠름',
     hitboxRadius: 0.54, weaponId: 'clawSwipe', superId: 'tigerPounce', gadgetId: 'stripeDash',
     colorPalette: ['#FFB870', '#5B4A7A', '#FFFFFF', '#FF7A8A'],
     memberOnly: true,

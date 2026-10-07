@@ -356,7 +356,7 @@ export class App {
     const renderCards = () => {
       grid.innerHTML = CHARACTERS.map((c) => `<div class="ccard ${c.id === this.previewChar ? 'sel' : ''} ${this.memberLocked(c.id) ? 'member-lock' : ''}" data-id="${c.id}" style="--c:${c.colorPalette[0]}">
         <span class="tr chip"><span class="trophy">🏆</span>${this.profile.trophies[c.id]}</span>
-        ${c.memberOnly ? `<span class="mo chip">${this.memberLocked(c.id) ? '🔒' : '👑'} ${t('memberBadge')}</span>` : ''}
+        ${c.memberOnly ? `<span class="mo chip">${this.memberLocked(c.id) ? '🔒' : '👑'}<span class="mt"> ${t('memberBadge')}</span></span>` : ''}
         ${this.portraits[c.id] ? `<img src="${this.portraits[c.id]}" alt="">` : '<div style="height:78%"></div>'}
         <div class="nm stroke-thin">${c.displayName}</div></div>`).join('');
       grid.querySelectorAll<HTMLElement>('.ccard').forEach((card) => card.addEventListener('click', () => {

@@ -93,7 +93,21 @@ button { font: inherit; color: inherit; }
 .charsel { display: grid; grid-template-columns: minmax(0, 29%) minmax(0, 1fr) minmax(0, 29%); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: 'header header header' 'cards . detail'; gap: 1em; align-items: stretch; pointer-events: none; }
 .charsel > * { pointer-events: auto; }
 .charsel .header { grid-area: header; display: flex; align-items: center; gap: .8em; }
-.charsel .card-grid { grid-area: cards; grid-template-columns: repeat(2, 1fr); }
+.charsel .card-grid { grid-area: cards; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: .6em; overflow: visible; min-height: 0; padding: .3em .3em .7em; }
+.charsel .ccard { aspect-ratio: auto; min-height: 0; container-type: size; }
+.charsel .ccard img { position: absolute; left: 4%; top: 6%; width: 92%; height: 70%; }
+.charsel .ccard .nm { bottom: 4%; font-size: clamp(12px, min(14cqw, 15cqh), 26px); line-height: 1.1; }
+.charsel .ccard .tr { font-size: clamp(10px, min(8cqw, 9cqh), 15px); }
+.charsel .ccard .mo { font-size: clamp(9px, min(7.5cqw, 8.5cqh), 14px); }
+.charsel .ccard.sel { transform: translateY(-2px) scale(1.02); z-index: 1; }
+/* short, wide cards (phone landscape): portrait on the left, name on the right */
+@container (min-aspect-ratio: 3 / 2) {
+  .charsel .ccard img { left: 2%; top: 6%; width: 50%; height: 88%; }
+  .charsel .ccard .nm { left: 50%; right: 3%; top: 50%; bottom: auto; transform: translateY(-50%); font-size: clamp(12px, min(11cqw, 24cqh), 22px); }
+  .charsel .ccard .mt { display: none; }
+}
+@container (max-width: 120px) { .charsel .ccard .tr { display: none; } }
+@container (max-width: 100px) { .charsel .ccard .mt { display: none; } }
 .charsel .detail { grid-area: detail; }
 .charsel .header h1 { margin: 0; font-size: 1.8em; }
 .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8em; align-content: start; overflow: auto; padding: .3em .3em 1em; }
@@ -316,10 +330,8 @@ input[type=range] { accent-color: var(--lav-d); width: 9em; height: 28px; }
 @media (max-height: 480px) {
   #ui { font-size: calc(13px * var(--ui-scale)); }
   .logo { font-size: 3.4em; }
-  .charsel .card-grid { grid-template-columns: repeat(3, 1fr); gap: .45em; }
-  .ccard { aspect-ratio: 1 / 1.15; border-radius: .8em; }
-  .ccard .nm { font-size: .9em; }
-  .ccard .tr { display: none; }
+  .charsel .card-grid { gap: .4em; padding-bottom: .4em; }
+  .ccard { border-radius: .8em; }
   .charsel { grid-template-columns: minmax(0, 31%) minmax(0, 1fr) minmax(0, 33%); gap: .6em; }
   .detail .radar { display: none; }
   .detail { font-size: .92em; gap: .4em; padding: .7em .8em; }
@@ -334,8 +346,11 @@ input[type=range] { accent-color: var(--lav-d); width: 9em; height: 28px; }
   .play-area { grid-column: 1; grid-row: 4; align-items: center; }
   .results { grid-template-columns: 1fr; overflow: auto; }
   .charsel { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(28vh, 1fr) minmax(0, 40vh); grid-template-areas: 'header' 'cards' '.' 'detail'; gap: .6em; }
-  .charsel .card-grid { grid-template-columns: repeat(6, 1fr); gap: .35em; overflow: visible; padding: .2em; }
-  .charsel .ccard .nm { font-size: .78em; } .charsel .ccard .tr { display: none; }
+  .charsel .card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: none; gap: .45em; padding: .2em; }
+  .charsel .ccard { aspect-ratio: 1 / 1.05; container-type: inline-size; }
+  .charsel .ccard .nm { font-size: clamp(12px, 16cqw, 20px); }
+  .charsel .ccard .tr { display: none; }
+  .charsel .ccard .mo { font-size: clamp(9px, 10cqw, 13px); }
   .detail .radar { display: none; }
 }
 @media (min-width: 768px) and (orientation: portrait) {
@@ -344,7 +359,9 @@ input[type=range] { accent-color: var(--lav-d); width: 9em; height: 28px; }
   .showcase-label { grid-column: 1 / -1; grid-row: 3; }
   .play-area { grid-column: 1 / -1; grid-row: 4; align-items: center; }
   .charsel { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(30vh, 1fr) minmax(0, 36vh); grid-template-areas: 'header' 'cards' '.' 'detail'; }
-  .charsel .card-grid { grid-template-columns: repeat(6, 1fr); overflow: visible; }
+  .charsel .card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: none; }
+  .charsel .ccard { aspect-ratio: 1 / 1.05; container-type: inline-size; }
+  .charsel .ccard .nm { font-size: clamp(14px, 13cqw, 24px); }
   .detail .radar { display: none; }
   .results { grid-template-columns: 1fr; }
   .tc-move-zone { top: 45%; }
