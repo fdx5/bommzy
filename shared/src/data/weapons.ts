@@ -26,6 +26,12 @@ export interface WeaponDef {
   splashRadius?: number;
   maxRangeDamageMul?: number; // arrow: damage scales 1 → mul by travelled distance
   statusEffect?: StatusEffect;
+  /** Shop upgrades retain their weapon family's combat rules. */
+  baseWeaponId?: string;
+  price?: number;
+  fxColor?: string;
+  fxAccent?: string;
+  fxShape?: 'star' | 'ring' | 'streak';
 }
 
 export type SuperKind = 'gatling' | 'bigbang' | 'megabomb' | 'meteor' | 'tornado' | 'prison' | 'roar' | 'pounce';
@@ -61,7 +67,7 @@ export interface GadgetDef {
 export const WEAPONS: Record<string, WeaponDef> = {
   gatling: {
     id: 'gatling', name: '따발총', nameEn: 'Chatter Gun', desc: '짧은 간격 6연발, 약간의 탄퍼짐',
-    damage: 190, fireIntervalMs: 480, projectileSpeed: 34, range: 17, spreadDeg: 6, pelletCount: 1,
+    damage: 190, fireIntervalMs: 480, projectileSpeed: 34, range: 17, spreadDeg: 8, pelletCount: 1,
     burstCount: 6, burstIntervalMs: 70, ammoMax: 3, reloadMs: 1200, projectileType: 'bullet',
     projectileRadius: 0.16, superChargePerHit: 100 / 30, hitRate: 0.65, aim: 'line',
   },
@@ -73,9 +79,9 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   grenade: {
     id: 'grenade', name: '수류탄', nameEn: 'Grenade', desc: '포물선 투척, 벽 너머 범위 피해',
-    damage: 1080, fireIntervalMs: 650, projectileSpeed: 14, range: 13, spreadDeg: 0, pelletCount: 1,
+    damage: 1120, fireIntervalMs: 650, projectileSpeed: 14, range: 13, spreadDeg: 0, pelletCount: 1,
     burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1800, projectileType: 'arc',
-    projectileRadius: 0.3, superChargePerHit: 20, hitRate: 0.6, aim: 'arc', splashRadius: 1.8,
+    projectileRadius: 0.3, superChargePerHit: 20, hitRate: 0.6, aim: 'arc', splashRadius: 1.65,
   },
   crossbow: {
     id: 'crossbow', name: '석궁 저격', nameEn: 'Star Crossbow', desc: '긴 사거리 단발, 멀수록 강해짐',
@@ -85,20 +91,20 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   boomerang: {
     id: 'boomerang', name: '부메랑', nameEn: 'Boomerang', desc: '되돌아오며 왕복 2회 판정, 관통',
-    damage: 560, fireIntervalMs: 550, projectileSpeed: 19, range: 12, spreadDeg: 0, pelletCount: 1,
+    damage: 560, fireIntervalMs: 550, projectileSpeed: 21, range: 12, spreadDeg: 0, pelletCount: 1,
     burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1600, projectileType: 'boomerang',
-    projectileRadius: 0.45, superChargePerHit: 10, hitRate: 0.7, aim: 'line',
+    projectileRadius: 0.5, superChargePerHit: 10, hitRate: 0.7, aim: 'line',
   },
   bubble: {
     id: 'bubble', name: '버블건', nameEn: 'Bubble Gun', desc: '느린 버블 3발, 적중 시 둔화',
-    damage: 470, fireIntervalMs: 600, projectileSpeed: 12.5, range: 14, spreadDeg: 22, pelletCount: 3,
+    damage: 450, fireIntervalMs: 600, projectileSpeed: 12.5, range: 14, spreadDeg: 22, pelletCount: 3,
     burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1600, projectileType: 'bubble',
     projectileRadius: 0.38, superChargePerHit: 100 / 15, hitRate: 0.55, aim: 'cone',
     statusEffect: { type: 'slow', durationMs: 800, amount: 0.35 },
   },
   roarWave: {
     id: 'roarWave', name: '포효 파동', nameEn: 'Roar Wave', desc: '넓은 음파가 경로의 적을 모두 관통',
-    damage: 950, fireIntervalMs: 700, projectileSpeed: 15, range: 8.5, spreadDeg: 0, pelletCount: 1,
+    damage: 980, fireIntervalMs: 700, projectileSpeed: 15, range: 9, spreadDeg: 0, pelletCount: 1,
     burstCount: 1, burstIntervalMs: 0, ammoMax: 3, reloadMs: 1800, projectileType: 'wave',
     projectileRadius: 0.6, superChargePerHit: 16, hitRate: 0.75, aim: 'line',
   },
@@ -109,6 +115,29 @@ export const WEAPONS: Record<string, WeaponDef> = {
     projectileRadius: 0.3, superChargePerHit: 100 / 12, hitRate: 0.6, aim: 'cone',
   },
 };
+
+/** Modest upgrades: 6–8% damage, at most 3% faster reload; no extra super charge. */
+const upgrades: [string, string, string, string, number, number, string, string, 'star' | 'ring' | 'streak'][] = [
+  ['voltRepeater', '볼트 리피터', 'Volt Repeater', 'gatling', 30000, 1.06, '#46E9FF', '#CFFFFF', 'streak'],
+  ['emberScatter', '엠버 샷건', 'Ember Scatter', 'shotgun', 37000, 1.06, '#FF783D', '#FFE6A1', 'star'],
+  ['cometMortar', '코멧 박격포', 'Comet Mortar', 'grenade', 44000, 1.07, '#FF8ACF', '#FFF0B2', 'star'],
+  ['auroraBow', '오로라 석궁', 'Aurora Bow', 'crossbow', 51000, 1.06, '#7CFFDC', '#C6ACFF', 'streak'],
+  ['prismRang', '프리즘 부메랑', 'Prism Rang', 'boomerang', 58000, 1.07, '#B590FF', '#7FFFE7', 'star'],
+  ['tidalBubbles', '타이달 버블건', 'Tidal Bubbles', 'bubble', 65000, 1.06, '#4AAEFF', '#BCF5FF', 'ring'],
+  ['sonicCrown', '소닉 크라운', 'Sonic Crown', 'roarWave', 73000, 1.07, '#FFD34D', '#FFF5CC', 'ring'],
+  ['novaTalons', '노바 클로', 'Nova Talons', 'clawSwipe', 82000, 1.07, '#FF628C', '#FFE9FF', 'streak'],
+  ['ionCarbine', '이온 카빈', 'Ion Carbine', 'gatling', 91000, 1.08, '#91FF70', '#ECFFD0', 'ring'],
+  ['eclipseLauncher', '이클립스 런처', 'Eclipse Launcher', 'grenade', 100000, 1.08, '#A37BFF', '#FFC56E', 'ring'],
+];
+export const SHOP_WEAPONS: WeaponDef[] = upgrades.map(([id, name, nameEn, baseWeaponId, price, mul, fxColor, fxAccent, fxShape]) => {
+  const base = WEAPONS[baseWeaponId];
+  const weapon: WeaponDef = { ...base, id, name, nameEn, baseWeaponId, price, fxColor, fxAccent, fxShape,
+    damage: Math.round(base.damage * mul), reloadMs: Math.round(base.reloadMs * 0.97),
+    desc: `${base.desc} · 기본형 대비 피해 +${Math.round((mul - 1) * 100)}%, 재장전 3% 단축`,
+  };
+  WEAPONS[id] = weapon;
+  return weapon;
+});
 
 export const SUPERS: Record<string, SuperDef> = {
   honeyGatling: {
@@ -123,8 +152,8 @@ export const SUPERS: Record<string, SuperDef> = {
   },
   megaBomb: {
     id: 'megaBomb', kind: 'megabomb', name: '메가 펭귄 폭탄', nameEn: 'Mega Penguin Bomb',
-    desc: '반경 4m 대폭발, 데미지 2.5배, 돌·수풀 파괴',
-    damageMultiplier: 2.5, radius: 4, terrainDamage: 999, durationMs: 0, knockback: 1.5, range: 14, aim: 'arc',
+    desc: '반경 4m 대폭발, 데미지 2.3배, 돌·수풀 파괴',
+    damageMultiplier: 2.3, radius: 4, terrainDamage: 999, durationMs: 0, knockback: 1.5, range: 14, aim: 'arc',
   },
   meteorArrow: {
     id: 'meteorArrow', kind: 'meteor', name: '유성 관통 화살', nameEn: 'Meteor Arrow',

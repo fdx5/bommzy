@@ -30,7 +30,7 @@ const SPEED = { slow: 4.3, normal: 4.9, fast: 5.5 };
 export const CHARACTERS: CharacterDef[] = [
   {
     id: 'toto', displayName: '토토', displayNameEn: 'Toto', concept: '민트색 곰돌이, 노란 헬멧과 큰 고글',
-    role: '중거리 지속 딜러', roleEn: 'Mid-range DPS', hp: 3200, moveSpeed: SPEED.normal, speedLabel: '보통',
+    role: '중거리 지속 딜러', roleEn: 'Mid-range DPS', hp: 3300, moveSpeed: SPEED.normal, speedLabel: '보통',
     hitboxRadius: 0.55, weaponId: 'gatling', superId: 'honeyGatling', gadgetId: 'honeyShield',
     colorPalette: ['#A8E6CF', '#FFE27A', '#7FC8B0', '#FFAAA5'],
     skins: [
@@ -74,7 +74,7 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'kiki', displayName: '키키', displayNameEn: 'Kiki', concept: '레몬색 원숭이, 탐험가 모자, 꼬리 리본',
-    role: '관통·견제', roleEn: 'Piercer', hp: 3000, moveSpeed: SPEED.fast, speedLabel: '빠름',
+    role: '관통·견제', roleEn: 'Piercer', hp: 3250, moveSpeed: SPEED.fast, speedLabel: '빠름',
     hitboxRadius: 0.52, weaponId: 'boomerang', superId: 'tornado', gadgetId: 'bananaSnack',
     colorPalette: ['#FFF5BA', '#F2D7A6', '#FFAAA5', '#A8E6CF'],
     skins: [
@@ -85,7 +85,7 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'mongle', displayName: '몽글', displayNameEn: 'Mongle', concept: '핑크 문어, 잠수 헬멧, 버블 탱크',
-    role: '서포트·제어', roleEn: 'Controller', hp: 3400, moveSpeed: SPEED.normal, speedLabel: '보통',
+    role: '서포트·제어', roleEn: 'Controller', hp: 3250, moveSpeed: SPEED.normal, speedLabel: '보통',
     hitboxRadius: 0.58, weaponId: 'bubble', superId: 'bubblePrison', gadgetId: 'inkCloud',
     colorPalette: ['#FFC8DD', '#F5D27A', '#B5DEFF', '#FFFFFF'],
     skins: [
@@ -96,7 +96,7 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'leo', displayName: '레오', displayNameEn: 'Leo', concept: '황금빛 아기 사자, 풍성한 갈기와 작은 왕관',
-    role: '탱커·돌격', roleEn: 'Tank', hp: 3600, moveSpeed: 4.7, speedLabel: '보통',
+    role: '탱커·돌격', roleEn: 'Tank', hp: 3550, moveSpeed: 4.7, speedLabel: '보통',
     hitboxRadius: 0.62, weaponId: 'roarWave', superId: 'kingsRoar', gadgetId: 'maneGuard',
     colorPalette: ['#FFD98A', '#F2A65A', '#FFF5E1', '#FFE27A'],
     memberOnly: true,
@@ -108,7 +108,7 @@ export const CHARACTERS: CharacterDef[] = [
   },
   {
     id: 'hoya', displayName: '호야', displayNameEn: 'Hoya', concept: '주황 아기 호랑이, 이마의 王 무늬와 빨간 머리띠',
-    role: '암살자·기습', roleEn: 'Assassin', hp: 3300, moveSpeed: 5.8, speedLabel: '빠름',
+    role: '암살자·기습', roleEn: 'Assassin', hp: 3400, moveSpeed: 5.8, speedLabel: '빠름',
     hitboxRadius: 0.54, weaponId: 'clawSwipe', superId: 'tigerPounce', gadgetId: 'stripeDash',
     colorPalette: ['#FFB870', '#5B4A7A', '#FFFFFF', '#FF7A8A'],
     memberOnly: true,

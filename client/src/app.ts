@@ -1,4 +1,4 @@
-import { CHARACTERS, CHAR_BY_ID, RULES, weaponOf, superOf, gadgetOf, radarStats, trophyDelta, xpFor, levelXp, MAPS, MAP_BY_ID, buildMap, randomMapId, ITEMS, ITEM_BY_ID, ITEM_KINDS, KIND_LABEL, SLOTS, SLOT_LABEL, type CharacterId, type Fighter, type MapId, type ItemKind, type ItemSlot, type Equipment } from '@pastel/shared';
+import { CHARACTERS, CHAR_BY_ID, RULES, WEAPONS, weaponOf, superOf, gadgetOf, radarStats, trophyDelta, xpFor, levelXp, MAPS, MAP_BY_ID, buildMap, randomMapId, ITEMS, ITEM_BY_ID, ITEM_KINDS, KIND_LABEL, SLOTS, SLOT_LABEL, type CharacterId, type Fighter, type MapId, type ItemKind, type ItemSlot, type Equipment } from '@pastel/shared';
 import { Stage } from './render/stage';
 import { LobbyScene, renderPortraits } from './render/lobby';
 import { guessQuality, type QualityLevel } from './render/quality';
@@ -142,7 +142,7 @@ export class App {
     const el = h(`<div class="title-screen">
       <div class="logo">${['#FFC8DD', '#A8E6CF', '#FFF5BA', '#B5DEFF', '#C3B1E1', '#FFAAA5'].map((c, i) => `<span style="color:${c};animation-delay:${i * 0.12}s">${'BOOMZY'[i]}</span>`).join('')}<span class="l2" style="color:#FFF5BA">붐지</span></div>
       <div class="tap stroke">${t('tapToStart')}</div>
-      <div class="chip" style="font-size:.85em;opacity:.85">v0.2 · 8인 캐주얼 3D 슈팅</div>
+      <div class="chip" style="font-size:.85em;opacity:.85">v0.3 · 13개 맵 · 신규 무기 10종</div>
     </div>`);
     el.addEventListener('pointerup', () => {
       audio.unlock();
@@ -371,7 +371,7 @@ export class App {
       }));
     };
     const renderDetail = () => {
-      const c = CHAR_BY_ID[this.previewChar], w = weaponOf(c), s = superOf(c), g = gadgetOf(c), r = radarStats(c);
+      const c = CHAR_BY_ID[this.previewChar], w = WEAPONS[this.account?.equipment[c.id]?.weapon ?? c.weaponId] ?? weaponOf(c), s = superOf(c), g = gadgetOf(c), r = radarStats(c);
       const tro = this.profile.trophies[c.id];
       const selSkin = this.profile.skins[c.id] ?? 'default';
       const isSel = this.profile.selected === c.id;
@@ -695,7 +695,7 @@ export class App {
     warmItemThumbs();
     const ko = getLang() === 'ko';
     let char: CharacterId = this.profile.selected;
-    let kind: ItemKind = 'hat';
+    let kind: ItemKind = 'weapon';
     let selected: string | null = null;
     let tryOn: Equipment = { ...(this.account?.equipment[char] ?? {}) };
     const el = h(`<div class="shop">
@@ -745,6 +745,7 @@ export class App {
         ${it ? `<div class="item-detail r-${it.rarity}">
           <div class="id-head"><span class="thumb big">${this.thumbImg(it.id)}</span>
             <div><b>${ko ? it.name : it.nameEn}</b><small class="rarity">${rarityLabel[it.rarity]}</small></div></div>
+          ${it.kind === 'weapon' ? `<p class="weapon-stats">${ko ? WEAPONS[it.id].desc : 'Damage +' + Math.round((WEAPONS[it.id].damage / WEAPONS[WEAPONS[it.id].baseWeaponId!].damage - 1) * 100) + '%, reload 3% faster. All brawlers.'}<br>${ko ? '피해' : 'Damage'} ${WEAPONS[it.id].damage} · ${ko ? '사거리' : 'Range'} ${WEAPONS[it.id].range}m<br>${ko ? '모든 캐릭터가 장착할 수 있습니다. 장착 시 기본 공격이 변경되고 특수기는 캐릭터 고유 성능을 유지합니다.' : 'All brawlers can equip it. Replaces your basic weapon; your character keeps their own super.'}</p>` : ''}
           ${owned(it.id) ? `<div class="owned-big">✔ ${t('owned')}</div>` : `<button class="btn coral big buy-btn" data-a="buy"><span class="btn-thumb">${this.thumbImg(it.id)}</span><span>💰 ${it.price.toLocaleString()} ${t('buy')}</span></button>`}
         </div>` : `<div class="empty small">${t('shopHint')}</div>`}
         ${unownedTry.length ? `<div class="note">${t('previewOnly')}</div>` : ''}
@@ -820,6 +821,7 @@ export class App {
       if (!res.data?.ok) { audio.play('dry'); this.toast(t('buyFail_' + (res.data?.error ?? 'net'))); return; }
       this.account!.user.gold = res.data.gold ?? this.account!.user.gold - it.price;
       this.account!.inventory.push(it.id);
+      this.account!.user.totalSpent += it.price;
       audio.play('pickup');
       this.toast(t('bought', { name: ko ? it.name : it.nameEn }));
       await after();

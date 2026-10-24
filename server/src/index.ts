@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ITEM_BY_ID, SLOTS, goldReward, trophyDelta, xpFor, type ItemSlot } from '@pastel/shared';
+import { ITEM_BY_ID, MAPS as MAP_CATALOG, RULES, SLOTS, goldReward, trophyDelta, xpFor, type ItemSlot } from '@pastel/shared';
 import { connect, migrate, applyXp } from './db';
 import { hashPassword, verifyPassword, createSession, userFromToken, sha256, loginBlocked, noteLoginFailure, clearLoginFailures } from './auth';
 
@@ -18,7 +18,7 @@ const app = new Hono();
 const CHARACTERS = ['toto', 'boogie', 'popo', 'luna', 'kiki', 'mongle', 'leo', 'hoya'] as const;
 /** brawlers that require an account (guests can't submit results with them) */
 const MEMBER_ONLY: readonly string[] = ['leo', 'hoya'];
-const MAPS = ['meadow', 'jungle_ruins', 'jungle_lagoon', 'desert', 'glacier', 'candy_town', 'starlight'] as const;
+const MAPS = MAP_CATALOG.map((m) => m.id) as [string, ...string[]];
 const MEMBER_MAPS: readonly string[] = ['candy_town', 'starlight'];
 const MIN_SUBMIT_GAP_MS = 20_000;
 const WEEK_MS = 7 * 24 * 3600 * 1000;
@@ -30,7 +30,7 @@ const int = (v: unknown) => Number(v ?? 0);
 // ─────────────────────────────────────────────── health
 app.get('/api/health', async (c) => {
   await db.execute('SELECT 1');
-  return c.json({ ok: true, db: process.env.TURSO_DATABASE_URL ? 'turso' : 'local' });
+  return c.json({ ok: true, db: process.env.TURSO_DATABASE_URL ? 'turso' : 'local', version: '0.3.0', revision: process.env.RENDER_GIT_COMMIT ?? null });
 });
 
 // ─────────────────────────────────────────────── auth
@@ -207,7 +207,7 @@ const ResultBody = z.object({
   assists: z.number().int().min(0).max(7),
   damage: z.number().int().min(0).max(110_000),
   score: z.number().int().min(0),
-  durationMs: z.number().int().min(10_000).max(260_000),
+  durationMs: z.number().int().min(10_000).max(RULES.matchDurationMs + 20_000),
 });
 /** Upper bound of a legit score (kills incl. streak/bounty bonuses + assists + damage + placement). */
 const maxScore = (b: z.infer<typeof ResultBody>) => b.kills * 350 + b.assists * 40 + Math.ceil(b.damage * 0.05) + 300 + 50;

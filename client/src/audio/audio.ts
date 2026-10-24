@@ -3,7 +3,15 @@
  * Each sound is built from layers — transient (click/crack) · body (tone/noise) · sub (punch) · tail —
  * with per-play pitch jitter so rapid fire never sounds like a loop, plus a soft reverb send.
  */
-export type Sfx =
+type WeaponSound = 'voltRepeater' | 'emberScatter' | 'cometMortar' | 'auroraBow' | 'prismRang' | 'tidalBubbles' | 'sonicCrown' | 'novaTalons' | 'ionCarbine' | 'eclipseLauncher';
+const WEAPON_TONES: Record<WeaponSound, [OscillatorType, number, number, number, number]> = {
+  voltRepeater: ['sawtooth', 1800, 320, 0.09, 3100], emberScatter: ['square', 180, 45, 0.28, 1600],
+  cometMortar: ['triangle', 420, 1400, 0.24, 2600], auroraBow: ['sine', 2200, 440, 0.22, 4800],
+  prismRang: ['triangle', 720, 140, 0.34, 1800], tidalBubbles: ['sine', 480, 1200, 0.18, 900],
+  sonicCrown: ['sawtooth', 200, 60, 0.35, 650], novaTalons: ['triangle', 3200, 700, 0.12, 5600],
+  ionCarbine: ['square', 1100, 260, 0.11, 3700], eclipseLauncher: ['sine', 130, 780, 0.4, 1200],
+};
+export type Sfx = WeaponSound | `${WeaponSound}Hit`
   | 'gatling' | 'gatlingSuper' | 'shotgun' | 'throw' | 'bow' | 'boomerang' | 'bubble'
   | 'impBullet' | 'impPellet' | 'impArrow' | 'impBoomerang' | 'impBubble' | 'impExplosive'
   | 'hitConfirm' | 'crit' | 'shieldHit' | 'hitMe' | 'explode' | 'bigExplode' | 'kill' | 'killMe'
@@ -157,6 +165,22 @@ export class AudioEngine {
   }
 
   private recipe(name: Sfx, o: AudioNode, t: number, p: number) {
+    const hit = name.endsWith('Hit');
+    const tone = WEAPON_TONES[(hit ? name.slice(0, -3) : name) as WeaponSound];
+    if (tone) {
+      const [wave, f0, f1, dur, noise] = tone;
+      if (hit) {
+        this.osc(o, 'sine', f1 * p, f0 * 0.25 * p, t, dur * 0.5, 0.22);
+        this.noise(o, t, dur * 0.4, 0.18, 'bandpass', noise, noise * 0.4, 3);
+        this.osc(o, 'triangle', f0 * 1.5 * p, f0 * p, t + 0.02, 0.1, 0.1);
+      } else {
+        this.osc(o, wave, f0 * p, f1 * p, t, dur, 0.23);
+        this.osc(o, 'sine', Math.max(80, f0 / 4), 45, t, dur * 0.7, 0.18);
+        this.noise(o, t, dur * 0.6, 0.2, 'bandpass', noise, noise * 0.3, 2);
+        this.osc(o, 'triangle', f1 * 2 * p, f1 * p, t + dur * 0.25, dur * 0.7, 0.09);
+      }
+      return;
+    }
     switch (name) {
       // ── weapons (fire)
       case 'gatling':

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CHAR_BY_ID, RULES, weaponOf, type Fighter, type GameEvent, type World, type CharacterId } from '@pastel/shared';
+import { CHAR_BY_ID, RULES, type Fighter, type GameEvent, type World, type CharacterId } from '@pastel/shared';
 import { t } from './i18n';
 import { themeFor } from '../render/themes';
 
@@ -147,7 +147,7 @@ export class Hud {
       const hpText = String(Math.ceil(f.hp));
       if (p.hpn.textContent !== hpText) p.hpn.textContent = hpText;
       if (p.ammo) {
-        const wd = weaponOf(CHAR_BY_ID[f.charId]);
+        const wd = w.weapon(f);
         for (let i = 0; i < 3; i++) {
           const fill = i < Math.floor(f.ammo) ? 1 : i === Math.floor(f.ammo) ? f.reloadT / wd.reloadMs : 0;
           p.ammo[i].style.transform = `scaleX(${fill})`;
@@ -326,8 +326,7 @@ export function drawMapPreview(g: CanvasRenderingContext2D, map: World['map'], s
   const X = (v: number) => (v + half) * k;
   g.fillStyle = M.base; g.fillRect(0, 0, size, size);
   g.strokeStyle = M.path; g.lineWidth = 2.4 * k; g.lineCap = 'round';
-  for (const s of map.spawns) { g.beginPath(); g.moveTo(X(s.x), X(s.y)); g.lineTo(X(0), X(0)); g.stroke(); }
-  g.fillStyle = M.path; g.beginPath(); g.arc(size / 2, size / 2, 7 * k, 0, Math.PI * 2); g.fill();
+  for (const points of map.paths ?? []) { g.beginPath(); points.forEach((p, i) => i ? g.lineTo(X(p.x), X(p.y)) : g.moveTo(X(p.x), X(p.y))); g.stroke(); }
   for (const z of map.slipZones) { g.fillStyle = M.ice; g.beginPath(); g.arc(X(z.x), X(z.y), z.r * k, 0, Math.PI * 2); g.fill(); }
   for (const b of map.bushes) { g.fillStyle = M.bush; g.beginPath(); g.arc(X(b.x), X(b.y), b.r * k, 0, Math.PI * 2); g.fill(); }
   for (const o of map.obstacles) {

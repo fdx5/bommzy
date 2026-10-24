@@ -52,7 +52,7 @@ describe('map', () => {
   });
   it('is mirror symmetric', () => {
     for (const o of m.obstacles) {
-      expect(m.obstacles.some((q) => q.type === o.type && Math.abs(q.x + o.x) < 0.01 && Math.abs(q.y - o.y) < 0.01)).toBe(true);
+      expect(m.obstacles.some((q) => q.type === o.type && Math.abs(q.x + o.x) < 0.01 && Math.abs(q.y + o.y) < 0.01)).toBe(true);
     }
   });
   it('keeps spawn safe zones clear', () => {

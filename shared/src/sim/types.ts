@@ -35,6 +35,8 @@ export interface MapData {
   slipZones: SlipZone[];
   half: number;
   spawns: Vec2[];
+  /** Authored paths are shared by the arena texture, minimap and lobby preview. */
+  paths?: Vec2[][];
   obstacles: Obstacle[];
   bushes: BushDef[];
 }
@@ -59,6 +61,7 @@ export interface PlayerSlot {
   name: string;
   charId: CharacterId;
   skin?: string;
+  weaponId?: string;
   isBot: boolean;
   difficulty?: 0 | 1 | 2;
   passive?: boolean; // tutorial dummy
@@ -70,6 +73,7 @@ export interface Fighter {
   name: string;
   charId: CharacterId;
   skin: string;
+  weaponId: string;
   isBot: boolean;
   x: number; y: number; px: number; py: number;
   vx: number; vy: number;
@@ -133,6 +137,7 @@ export interface Fighter {
 export interface Projectile {
   id: number;
   ownerId: string;
+  weaponId?: string;
   kind: ProjectileType | 'meteor';
   x: number; y: number; px: number; py: number; z: number;
   vx: number; vy: number;

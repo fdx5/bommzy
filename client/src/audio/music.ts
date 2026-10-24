@@ -290,6 +290,12 @@ const starlight: Song = {
 };
 
 export const SONGS: Record<string, Song> = {
+  sunken_harbor: jungleLagoon,
+  ember_forge: desert,
+  bamboo_pass: jungleRuins,
+  neon_junction: candyTown,
+  crystal_cavern: starlight,
+  sky_gardens: meadow,
   candy_town: candyTown,
   starlight,
   lobby,

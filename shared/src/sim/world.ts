@@ -1,5 +1,5 @@
 import { CHAR_BY_ID, weaponOf, superOf, gadgetOf, type CharacterDef } from '../data/characters';
-import type { WeaponDef } from '../data/weapons';
+import { WEAPONS, SHOP_WEAPONS, type WeaponDef } from '../data/weapons';
 import { SUPER_CHARGE_RATE } from '../data/balance';
 import { clamp, segCircle, segAABB, RNG, wrapAngle, DEG, type Vec2 } from '../math';
 import { SpatialGrid } from './grid';
@@ -23,20 +23,20 @@ export interface MatchConfig {
 }
 
 export const RULES = {
-  /** FFA match length; the half-speed cloud needs ~4 minutes to close on a long match */
-  matchDurationMs: 240000,
+  /** FFA time limit, extended by 30 seconds along with the cloud's starting times. */
+  matchDurationMs: 270000,
   regenDelayMs: 3000,
   regenPerSec: 0.13,
   inputBufferMs: 100,
   cubeBonus: 0.1,
   killSuperBonus: 0.25,
-  poisonStartMs: 90000,
-  poisonEndMs: 165000,
+  poisonStartMs: 120000,
+  poisonEndMs: 195000,
   poisonFrom: 58,
   poisonTo: 7,
   poisonDps: 520,
   /** few survivors left: the cloud starts early and closes faster so the endgame can't stall */
-  poisonEarlyMs: 60000,
+  poisonEarlyMs: 90000,
   poisonEarlyRadius: 42,
   poisonFinal: 2,
   /** global multiplier on how fast the cloud closes in (0.5 = half speed) */
@@ -127,6 +127,7 @@ export class World {
     const face = Math.atan2(-sp.y, -sp.x);
     return {
       id: slot.id, slot: i, name: slot.name, charId: def.id, skin: slot.skin ?? 'default', isBot: slot.isBot,
+      weaponId: SHOP_WEAPONS.some((w) => w.id === slot.weaponId) ? slot.weaponId! : def.weaponId,
       x: sp.x, y: sp.y, px: sp.x, py: sp.y, vx: 0, vy: 0, kbx: 0, kby: 0,
       aimAngle: face, moveAngle: face,
       hp: def.hp, baseHp: def.hp, maxHp: def.hp, alive: true, retiredAt: -1, killedBy: null, place: 0,
@@ -145,7 +146,7 @@ export class World {
   get aliveCount() { let n = 0; for (const f of this.fighters) if (f.alive) n++; return n; }
   visible(viewerId: string | null, target: Fighter) { return isVisibleTo(viewerId ? this.byId.get(viewerId) ?? null : null, target, this.time); }
   drainEvents() { const e = this.events; this.events = []; return e; }
-  weapon(f: Fighter) { return weaponOf(CHAR_BY_ID[f.charId]); }
+  weapon(f: Fighter) { return WEAPONS[f.weaponId] ?? weaponOf(CHAR_BY_ID[f.charId]); }
   dmgMul(f: Fighter) { return 1 + RULES.cubeBonus * f.cubes; }
   emote(id: string, emote: number) {
     const f = this.byId.get(id);
@@ -187,7 +188,7 @@ export class World {
   // ───────────────────────────────────────────── fighters
   private stepFighter(f: Fighter, dt: number, inp: PlayerInput) {
     const def = CHAR_BY_ID[f.charId];
-    const w = weaponOf(def);
+    const w = this.weapon(f);
     const now = this.time;
     const stunned = now < f.stunUntil;
 
@@ -256,7 +257,7 @@ export class World {
     }
 
     // active supers (gatling / tornado)
-    if (f.superKind && now < f.superUntil) this.stepActiveSuper(f, w);
+    if (f.superKind && now < f.superUntil) this.stepActiveSuper(f, weaponOf(def));
     else if (f.superKind) f.superKind = null;
 
     if (!stunned && this.phase === 'playing') {
@@ -414,6 +415,7 @@ export class World {
     const x = f.x + Math.cos(angle) * r, y = f.y + Math.sin(angle) * r;
     return {
       id: this.nextId++, ownerId: f.id, kind, x, y, px: x, py: y, z: 0.7,
+      weaponId: f.weaponId,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
       damage, radius, rangeLeft: range, maxRange: range, traveled: 0,
       isSuper: false, superKind: null, terrainDamage: 0, knockback: 0, pierce: false,

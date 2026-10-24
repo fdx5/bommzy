@@ -522,7 +522,7 @@ function characterGeometry(id: CharacterId, palette: string[], items: string[] =
     const list: Baked[] = [];
     const worn = slotsOf(outfit);
     const [hx, , hz] = FACES[id].headS;
-    const specs = characterParts(id, palette).filter((p) => !p.grp || !worn.has(p.grp))
+    const specs = characterParts(id, palette).filter((p) => !(worn.has('weapon') && p.bone === 'weapon') && (!p.grp || !worn.has(p.grp)))
       .map((p) => (p.grp === 'hat' ? { ...p, post: [hx / 1.04, 1, hz] } : p))
       .concat(outfitParts(id, outfit));
     for (const spec of specs) bake(spec, list);

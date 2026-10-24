@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAPS, buildMap, World, CHARACTERS, emptyInput, type PlayerSlot } from '../src';
+import { MAPS, RULES, buildMap, World, CHARACTERS, emptyInput, type PlayerSlot } from '../src';
 import { NavGrid } from '../src/sim/nav';
 
 describe.each(MAPS.map((m) => [m.id]))('map %s', (id) => {
@@ -11,9 +11,9 @@ describe.each(MAPS.map((m) => [m.id]))('map %s', (id) => {
     expect(m.obstacles.filter((o) => o.type === 'rock').length).toBeGreaterThan(16);
     expect(m.theme).toBeTruthy();
   });
-  it('is mirror symmetric', () => {
-    for (const o of m.obstacles) expect(m.obstacles.some((q) => q.type === o.type && Math.abs(q.x + o.x) < 0.01 && Math.abs(q.y - o.y) < 0.01)).toBe(true);
-    for (const b of m.bushes) expect(m.bushes.some((q) => Math.abs(q.x - b.y) < 0.01 && Math.abs(q.y - b.x) < 0.01)).toBe(true);
+  it('is rotationally fair without forcing octant layouts', () => {
+    for (const o of m.obstacles) expect(m.obstacles.some((q) => q.type === o.type && Math.abs(q.x + o.x) < 0.01 && Math.abs(q.y + o.y) < 0.01)).toBe(true);
+    for (const b of m.bushes) expect(m.bushes.some((q) => Math.abs(q.x + b.x) < 0.01 && Math.abs(q.y + b.y) < 0.01)).toBe(true);
   });
   it('keeps spawn safe zones clear', () => {
     for (const s of m.spawns) for (const o of m.obstacles) expect(Math.hypot(o.x - s.x, o.y - s.y)).toBeGreaterThan(4);
@@ -37,9 +37,9 @@ describe.each(MAPS.map((m) => [m.id]))('map %s', (id) => {
   });
   it('plays a full 8-bot match to the end', () => {
     const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS).slice(0, 8).map((c, i) => ({ id: 'b' + i, name: 'b' + i, charId: c.id, isBot: true, difficulty: 1 }));
-    const w = new World(buildMap(id), { mode: 'ffa', durationMs: 240000, seed: 5, players, poison: true, mapEvents: true, countdownMs: 0 });
+    const w = new World(buildMap(id), { mode: 'ffa', durationMs: RULES.matchDurationMs, seed: 5, players, poison: true, mapEvents: true, countdownMs: 0 });
     let steps = 0;
-    while (w.phase !== 'ended' && steps < 20 * 260) { w.step(1 / 20); w.drainEvents(); steps++; }
+    while (w.phase !== 'ended' && steps < 20 * 290) { w.step(1 / 20); w.drainEvents(); steps++; }
     expect(w.phase).toBe('ended');
   });
 });
@@ -47,7 +47,7 @@ describe.each(MAPS.map((m) => [m.id]))('map %s', (id) => {
 describe('ice', () => {
   it('slides: keeps moving after input stops', () => {
     const m = buildMap('glacier');
-    const w = new World(m, { mode: 'ffa', durationMs: 240000, seed: 1, players: [{ id: 'a', name: 'a', charId: 'toto', isBot: false }, { id: 'z', name: 'z', charId: 'luna', isBot: false }], poison: false, mapEvents: false, countdownMs: 0 });
+    const w = new World(m, { mode: 'ffa', durationMs: RULES.matchDurationMs, seed: 1, players: [{ id: 'a', name: 'a', charId: 'toto', isBot: false }, { id: 'z', name: 'z', charId: 'luna', isBot: false }], poison: false, mapEvents: false, countdownMs: 0 });
     m.obstacles.forEach((o) => { o.alive = false; });
     const f = w.fighters[0];
     f.x = f.px = -5; f.y = f.py = 0; // central ice lake

@@ -173,16 +173,13 @@ export class Environment {
     g.lineCap = 'round';
     const path = (w: number, col: string) => {
       g.strokeStyle = col; g.lineWidth = w * ppm;
-      for (const s of this.map.spawns) { g.beginPath(); g.moveTo(X(s.x), X(s.y)); g.quadraticCurveTo(X(s.x * 0.5 + s.y * 0.12), X(s.y * 0.5 - s.x * 0.12), X(0), X(0)); g.stroke(); }
-      g.beginPath(); g.arc(X(0), X(0), 9 * ppm, 0, Math.PI * 2); g.stroke();
+      for (const points of this.map.paths ?? []) {
+        g.beginPath(); points.forEach((p, i) => i ? g.lineTo(X(p.x), X(p.y)) : g.moveTo(X(p.x), X(p.y))); g.stroke();
+      }
     };
     path(3.4, T.pathEdge);
     path(2.6, T.path);
     g.fillStyle = T.plaza;
-    g.beginPath(); g.arc(X(0), X(0), 6.5 * ppm, 0, Math.PI * 2); g.fill();
-    // plaza tiles
-    g.strokeStyle = 'rgba(210,190,160,0.5)'; g.lineWidth = 0.08 * ppm;
-    for (let r = 2; r <= 6; r += 2) { g.beginPath(); g.arc(X(0), X(0), r * ppm, 0, Math.PI * 2); g.stroke(); }
     // spawn pads
     for (const s of this.map.spawns) {
       g.fillStyle = T.pad; g.beginPath(); g.arc(X(s.x), X(s.y), 2.2 * ppm, 0, Math.PI * 2); g.fill();

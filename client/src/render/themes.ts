@@ -167,5 +167,28 @@ THEMES.starlight = {
   minimap: { base: '#A99CE0', path: '#D9D2F5', bush: '#7FA0E6', tree: '#B9A8F0', rock: '#C9B8F5', crate: '#E0C9FF', water: '#5A6FD0', ice: '#DDF0FF' },
 };
 
+/** New arenas have their own palettes and prop combinations, as well as distinct layouts. */
+const variants: [string, string, string, string, string, string, [TreeKind, TreeKind, TreeKind], RockShape][] = [
+  ['harbor', 'jungle', '#B8DCD9', '#E5D2AA', '#3A91B3', '#55AFA6', ['palm', 'broadleaf', 'palm'], 'mossy'],
+  ['forge', 'desert', '#796A83', '#D9A37B', '#F58C54', '#BC6E86', ['crystal', 'barrel', 'crystal'], 'mesa'],
+  ['bamboo', 'jungle', '#C8DBAE', '#F1DEB7', '#79BEB0', '#72A876', ['broadleaf', 'pine', 'broadleaf'], 'mossy'],
+  ['neon', 'starlight', '#7378AB', '#B8BCF2', '#E67CCB', '#73C9D2', ['crystal', 'apple', 'crystal'], 'crystal'],
+  ['cavern', 'glacier', '#B4A6D9', '#E3D7F5', '#7A9ED9', '#9A87C5', ['crystal', 'crystal', 'snowpine'], 'crystal'],
+  ['sky', 'meadow', '#D2EDDC', '#FFF1CD', '#8ED2EF', '#A0D5A7', ['round', 'apple', 'broadleaf'], 'round'],
+];
+for (const [id, base, ground, path, water, bush, trees, rockShape] of variants) {
+  const t = structuredClone(THEMES[base]);
+  t.id = id; t.trees = trees; t.rock.shape = rockShape;
+  t.ground = { ...t.ground, base: ground, path, plaza: path, pad: path, checker: id === 'neon' ? 0.12 : 0.025 };
+  t.water = { ...t.water, deep: water, shallow: path, lily: id === 'harbor' || id === 'bamboo' || id === 'sky' };
+  t.bush = { ...t.bush, colors: [bush, ground, bush], outline: bush };
+  t.rock = { ...t.rock, top: path, accent: water };
+  t.island = { ...t.island, top: ground, miniTop: ground, miniBlob: bush };
+  t.minimap = { ...t.minimap, base: ground, path, water, bush, rock: path };
+  if (id === 'forge') { t.tods = ['sunset']; t.ambient = ['sand']; t.grass = null; t.flowers = null; }
+  if (id === 'neon' || id === 'cavern') { t.tods = ['night']; t.ambient = ['fireflies']; }
+  THEMES[id] = t;
+}
+
 export function themeFor(id: string | undefined): Theme { return THEMES[id ?? 'meadow'] ?? THEMES.meadow; }
 export function lightFor(theme: Theme, tod: TimeOfDay): LightPreset { return { ...BASE_LIGHT[tod], ...(theme.light[tod] ?? {}) }; }

@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { ITEMS, ITEM_BY_ID, ITEM_KINDS, SLOT_OF, goldReward } from '../src';
 
 describe('shop catalogue', () => {
-  it('has 10 items per kind (8 kinds = 80) with unique ids', () => {
-    expect(ITEMS).toHaveLength(80);
+  it('has 10 items per kind (including 10 weapons) with unique ids', () => {
+    expect(ITEMS).toHaveLength(90);
     for (const k of ITEM_KINDS) expect(ITEMS.filter((i) => i.kind === k)).toHaveLength(10);
-    expect(new Set(ITEMS.map((i) => i.id)).size).toBe(80);
+    expect(new Set(ITEMS.map((i) => i.id)).size).toBe(90);
   });
   it('prices range from 1,000 to 100,000 gold and slots match kinds', () => {
     expect(Math.min(...ITEMS.map((i) => i.price))).toBe(1000);

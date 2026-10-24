@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ITEM_BY_ID, type CharacterId, type ItemDef, type ItemSlot } from '@pastel/shared';
+import { ITEM_BY_ID, WEAPONS, type CharacterId, type ItemDef, type ItemSlot } from '@pastel/shared';
 import type { BoneName, PartSpec } from './chibi';
 import { FACES, HEAD_Y, eyeAnchor } from './face';
 
@@ -463,8 +463,40 @@ function bracelet(it: ItemDef, f: Fit): P[] {
   return out;
 }
 
+/** Models use the weapon bone so every brawler can hold any shop weapon. */
+function weapon(it: ItemDef): P[] {
+  const w = WEAPONS[it.id], [a, b, c] = it.colors;
+  const at = (g: THREE.BufferGeometry, color: string, x = 0, y = 0, z = 0) => part(g, color, 'weapon', { p: [-0.34 + x, 0.35 + y, 0.16 + z], gloss: 1 });
+  const out = [at(box(0.09, 0.14, 0.09), c, 0, -0.07)];
+  switch (w.projectileType) {
+    case 'bullet':
+      out.push(at(box(0.17, 0.13, 0.25), a, 0, 0, 0.06));
+      for (const x of [-0.045, 0.045]) out.push(at(cyl(0.03, 0.03, it.id === 'ionCarbine' ? 0.48 : 0.34, 8).rotateX(Math.PI / 2), c, x, 0, 0.28));
+      out.push(at(tor(0.08, 0.018), b, 0, 0, 0.2)); break;
+    case 'pellet':
+      for (const x of [-0.06, 0.06]) out.push(at(cyl(0.055, 0.055, 0.4, 10).rotateX(Math.PI / 2), a, x, 0, 0.2));
+      out.push(at(box(0.25, 0.06, 0.12), b, 0, -0.03, 0.2)); break;
+    case 'arc':
+      out.push(at(cyl(0.13, 0.09, 0.34, it.id === 'eclipseLauncher' ? 6 : 12).rotateX(Math.PI / 2), a, 0, 0, 0.15));
+      out.push(at(tor(0.13, 0.025), b, 0, 0, 0.32), at(sph(0.065), c, 0, 0.11, 0)); break;
+    case 'arrow':
+      out.push(at(box(0.07, 0.06, 0.47), c, 0, 0, 0.14), at(tor(0.23, 0.032, 8, 24, Math.PI).rotateX(Math.PI / 2), a, 0, 0, 0.28), at(new THREE.OctahedronGeometry(0.07), b, 0, 0, 0.38)); break;
+    case 'boomerang':
+      for (const side of [-1, 1]) out.push(at(box(0.11, 0.055, 0.34).rotateY(side * 0.7), side === 1 ? a : b, side * 0.1, 0, 0.13)); break;
+    case 'bubble':
+      out.push(at(sph(0.13), a, 0, 0.02, 0.03), at(cyl(0.14, 0.07, 0.22, 12).rotateX(Math.PI / 2), c, 0, 0.02, 0.2), at(tor(0.14, 0.025), b, 0, 0.02, 0.32)); break;
+    case 'wave':
+      out.push(at(cyl(0.17, 0.06, 0.25, 12).rotateX(Math.PI / 2), a, 0, 0, 0.14));
+      for (const z of [0.1, 0.2, 0.29]) out.push(at(tor(0.15, 0.015), b, 0, 0, z)); break;
+    case 'claw':
+      out.push(at(sph(0.12).scale(1, 0.6, 1), a));
+      for (const x of [-0.08, 0, 0.08]) out.push(at(cone(0.035, 0.3).rotateX(Math.PI / 2), b, x, 0, 0.22)); break;
+  }
+  return out;
+}
+
 const BUILDERS: Record<string, (it: ItemDef, f: Fit) => P[]> = {
-  glasses: eyewear, sunglasses: eyewear, hat, top, pants, shoes, necklace, bracelet,
+  glasses: eyewear, sunglasses: eyewear, hat, top, pants, shoes, necklace, bracelet, weapon,
 };
 
 /** Parts for a set of equipped item ids on a character (unknown ids are ignored). */

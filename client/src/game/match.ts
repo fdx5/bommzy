@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  World, RULES, buildMap, CHAR_BY_ID, ITEMS, SLOTS, weaponOf, superOf, CHARACTERS, type GameEvent, type Fighter, type PlayerSlot, type CharacterId, type MapId,
+  World, RULES, buildMap, CHAR_BY_ID, ITEM_BY_ID, ITEMS, SLOTS, superOf, CHARACTERS, type GameEvent, type Fighter, type PlayerSlot, type CharacterId, type MapId,
 } from '@pastel/shared';
 import { Environment, type TimeOfDay } from '../render/environment';
 import { themeFor } from '../render/themes';
@@ -86,7 +86,7 @@ export class Match {
 
   constructor(private stage: Stage, private controls: Controls, private uiRoot: HTMLElement, private portraits: Record<CharacterId, string>, private profile: Profile, readonly opts: MatchOptions) {
     const seed = (Math.random() * 1e9) | 0;
-    const players: PlayerSlot[] = [{ id: this.localId, name: opts.nickname, charId: opts.charId, skin: opts.skin, isBot: false }];
+    const players: PlayerSlot[] = [{ id: this.localId, name: opts.nickname, charId: opts.charId, skin: opts.skin, isBot: false, weaponId: opts.items?.find((id) => ITEM_BY_ID[id]?.slot === 'weapon') }];
     if (opts.mode === 'tutorial') {
       players.push({ id: 'dummy', name: '허수아비', charId: 'boogie', isBot: true, passive: true });
     } else {
@@ -158,6 +158,7 @@ export class Match {
     const out: string[] = [];
     for (const sl of SLOTS) {
       if (rnd() > 0.38) continue;
+      if (sl === 'weapon') continue;
       const pool = ITEMS.filter((i) => i.slot === sl && i.price < 40000);
       out.push(pool[Math.floor(rnd() * pool.length)].id);
     }
@@ -236,7 +237,7 @@ export class Match {
     if (!this.paused) {
       if (this.hitstop > 0) this.hitstop -= dt;
       else this.acc += dt;
-      const wpn = weaponOf(CHAR_BY_ID[me.charId]);
+      const wpn = w.weapon(me);
       while (this.acc >= DT) {
         this.acc -= DT;
         if (me.alive) w.setInput(this.localId, this.controls.sample(me.x, me.y, wpn.range, ++this.seq));
@@ -269,7 +270,7 @@ export class Match {
       const dashing = w.time < f.dashUntil;
       m.stunned = w.time < f.stunUntil;
       m.victory = w.phase === 'ended' && f.id === w.winnerId;
-      m.weaponAway = def.weaponId === 'boomerang' && w.projectiles.some((p) => p.ownerId === f.id && p.kind === 'boomerang');
+      m.weaponAway = w.weapon(f).projectileType === 'boomerang' && w.projectiles.some((p) => p.ownerId === f.id && p.kind === 'boomerang');
       m.update({
         dt, time: this.elapsed + f.slot, speed,
         moveYaw: Math.PI / 2 - f.moveAngle, aimYaw: Math.PI / 2 - f.aimAngle, aiming, dashing,
@@ -296,11 +297,11 @@ export class Match {
     if (me.alive) {
       const pv = this.controls.aimPreview();
       if (pv.active && w.phase === 'playing') {
-        let ang = pv.angle, dist = pv.dist * weaponOf(CHAR_BY_ID[me.charId]).range;
+        let ang = pv.angle, dist = pv.dist * w.weapon(me).range;
         if (Number.isNaN(ang)) { const mw = this.controls.mouseWorld; ang = Math.atan2(mw.z - meNow.z, mw.x - meNow.x); dist = Math.hypot(mw.x - meNow.x, mw.z - meNow.z); }
         const sup = pv.isSuper && me.superCharge >= 1;
         if (pv.isSuper && sup) dist = Math.min(dist, superOf(CHAR_BY_ID[me.charId]).range || dist);
-        this.entities.aim.show(me.charId, sup, meNow.x, meNow.z, ang, dist, pv.strength);
+        this.entities.aim.show(me.charId, sup, meNow.x, meNow.z, ang, dist, pv.strength, w.weapon(me));
         const leadLen = this.controls.touchMode ? 1.6 : Math.min(2.5, dist * 0.18);
         this.lead.lerp(this.leadTarget.set(Math.cos(ang) * leadLen, Math.sin(ang) * leadLen), Math.min(1, dt * 4));
       } else {
@@ -400,8 +401,17 @@ export class Match {
           m.kick(e.kind === 'pellet' ? 1.6 : e.isSuper ? 0.8 : 1);
           const vis = me || w.visible(this.viewerId, f);
           const pal = CHAR_BY_ID[f.charId].colorPalette;
+          const upgrade = w.weapon(f);
           if (vis) {
-            switch (e.kind) {
+            if (!e.isSuper && upgrade.fxColor) {
+              this.vfx.muzzle(e.x, e.y, e.angle, upgrade.fxColor, e.kind === 'pellet');
+              this.vfx.emit(e.x + Math.cos(e.angle) * 0.7, 0.9, e.y + Math.sin(e.angle) * 0.7, {
+                count: e.kind === 'pellet' ? 10 : 5, color: [upgrade.fxColor, upgrade.fxAccent!], angle: e.angle,
+                spread: e.kind === 'pellet' ? 0.7 : 0.25, speed: [3, 7], up: [0.3, 1], drag: 4,
+                life: [0.14, 0.3], size: [0.12, 0.3], shape: SHAPE[upgrade.fxShape ?? 'star'], align: true,
+              });
+              if (upgrade.fxShape === 'ring') this.vfx.shockRing(e.x, e.y, 1.1, upgrade.fxAccent!, 0.2);
+            } else switch (e.kind) {
               case 'bullet': this.vfx.muzzle(e.x, e.y, e.angle, e.isSuper ? '#FF9A2E' : '#FFD36B', e.isSuper); this.vfx.gatlingFlash(e.x, e.y, e.angle, e.isSuper); this.vfx.shell(e.x, e.y, e.angle); break;
               case 'pellet': this.vfx.shotgunPuff(e.x, e.y, e.angle); this.vfx.muzzle(e.x, e.y, e.angle, '#FF9A4D', true); this.vfx.shell(e.x, e.y, e.angle, true); break;
               case 'arrow': this.vfx.bowSnap(e.x, e.y, e.angle); break;
@@ -412,7 +422,7 @@ export class Match {
               case 'claw': this.vfx.swoosh(e.x, e.y, e.angle, '#FFFFFF'); break;
             }
           }
-          const sfx: Sfx = e.isSuper && e.kind === 'bullet' ? 'gatlingSuper' : SFX_FOR[e.kind] ?? 'gatling';
+          const sfx: Sfx = !e.isSuper && upgrade.baseWeaponId ? upgrade.id as Sfx : e.isSuper && e.kind === 'bullet' ? 'gatlingSuper' : SFX_FOR[e.kind] ?? 'gatling';
           audio.play(sfx, me ? undefined : { x: e.x, z: e.y }, me ? 0.95 : 0.7);
           if (me) {
             this.stage.kick(Math.cos(e.angle), Math.sin(e.angle), (KICK[e.kind] ?? 0.06) * (e.isSuper ? 1.3 : 1));
@@ -446,13 +456,19 @@ export class Match {
           const power = e.isSuper ? 2 : e.crit ? 1.5 : Math.min(1.4, 0.45 + e.amount / 900);
           const ang = Math.atan2(e.ny, e.nx);
           const visibleT = meTgt || w.visible(this.viewerId, target);
+          const attacker = e.attacker ? w.byId.get(e.attacker) : undefined;
+          const upgrade = attacker && !e.isSuper ? w.weapon(attacker) : undefined;
           if (e.kind !== 'poison') {
             this.model(e.target)!.triggerHit(e.nx, e.ny, power);
             if (visibleT || meAtt) {
-              this.vfx.impact(e.kind, e.x, e.y, ang, e.isSuper || e.crit);
+              if (upgrade?.fxColor) {
+                this.vfx.emit(e.x, 0.9, e.y, { count: 10, color: [upgrade.fxColor, upgrade.fxAccent!], speed: [2, 5], up: [1, 3], gravity: 6,
+                  life: [0.18, 0.4], size: [0.14, 0.32], shape: SHAPE[upgrade.fxShape ?? 'star'] });
+                this.vfx.shockRing(e.x, e.y, 0.8, upgrade.fxColor, 0.18);
+              } else this.vfx.impact(e.kind, e.x, e.y, ang, e.isSuper || e.crit);
               if (e.isSuper) this.vfx.shockRing(e.x, e.y, 1.4, '#FFFFFF', 0.25);
             }
-            const imp = IMPACT_SFX[e.kind];
+            const imp = upgrade?.baseWeaponId ? `${upgrade.id}Hit` as Sfx : IMPACT_SFX[e.kind];
             if (imp && imp !== 'impExplosive') audio.play(imp, { x: e.x, z: e.y }, meAtt || meTgt ? 0.9 : 0.6);
           }
           if (visibleT || meAtt) {
@@ -519,13 +535,19 @@ export class Match {
           if (this.isMe(e.id)) { this.hud.banner(e.n === 2 ? t('double') : e.n === 3 ? t('triple') : t('mega')); audio.play('streak'); }
           break;
         case 'explode': {
-          const pal: string[] = e.kind === 'prison' ? ['#FFFFFF', '#CFF1FF', '#FFC8DD', '#E9DEFF'] : e.kind === 'megabomb' ? ['#FFFFFF', '#FFE9C7', '#E9DEFF', '#FFC8DD']
+          const owner = w.byId.get(e.ownerId);
+          const upgrade = owner && e.kind === 'grenade' ? w.weapon(owner) : undefined;
+          const pal: string[] = upgrade?.fxColor ? ['#FFFFFF', upgrade.fxColor, upgrade.fxAccent!] : e.kind === 'prison' ? ['#FFFFFF', '#CFF1FF', '#FFC8DD', '#E9DEFF'] : e.kind === 'megabomb' ? ['#FFFFFF', '#FFE9C7', '#E9DEFF', '#FFC8DD']
             : e.kind === 'roar' ? ['#FFFFFF', '#FFF5BA', '#FFD98A', '#FFE27A'] : e.kind === 'pounce' ? ['#FFFFFF', '#FFE3C9', '#FFB870', '#FF9EAF'] : ['#FFFFFF', '#FFE3F0', '#F1EAFF'];
           if (e.kind === 'roar') { this.vfx.shockRing(e.x, e.y, e.r, '#FFE27A'); this.vfx.shockRing(e.x, e.y, e.r * 0.6, '#FFFFFF', 0.25); }
           if (e.kind === 'pounce') { this.vfx.shockRing(e.x, e.y, e.r, '#FFB870'); this.vfx.dust(e.x, e.y, 3); }
           this.vfx.explosion(e.x, e.y, e.r, pal);
           if (e.r > 3) this.vfx.superBlast(e.x, e.y, e.r, pal[1]);
-          if (e.kind === 'prison') { audio.play('impBubble', { x: e.x, z: e.y }, 1.2); audio.play('explode', { x: e.x, z: e.y }, 0.7); }
+          if (upgrade?.fxColor) {
+            this.vfx.shockRing(e.x, e.y, e.r, upgrade.fxColor, 0.3);
+            this.vfx.emit(e.x, 0.5, e.y, { count: 22, color: [upgrade.fxColor, upgrade.fxAccent!], speed: [3, 6], up: [2, 5], gravity: 8, life: [0.3, 0.6], size: [0.2, 0.4], shape: SHAPE[upgrade.fxShape ?? 'star'] });
+            audio.play(`${upgrade.id}Hit` as Sfx, { x: e.x, z: e.y }, 1.1);
+          } else if (e.kind === 'prison') { audio.play('impBubble', { x: e.x, z: e.y }, 1.2); audio.play('explode', { x: e.x, z: e.y }, 0.7); }
           else if (e.kind === 'roar' || e.kind === 'pounce') audio.play('land', { x: e.x, z: e.y }, 1.3);
           else audio.play(e.r > 3 ? 'bigExplode' : 'explode', { x: e.x, z: e.y }, e.r > 3 ? 1.1 : 0.9);
           const d = Math.hypot(e.x - this.focus.x, e.y - this.focus.z);

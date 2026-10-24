@@ -1,4 +1,4 @@
-import { World, buildMap, CHARACTERS, type PlayerSlot, type MapId } from '../src';
+import { World, RULES, buildMap, CHARACTERS, type PlayerSlot, type MapId } from '../src';
 
 /** Bot-vs-bot playtest metrics: match length, win rate per character, bush kill ratio, supers. */
 const N = Number(process.argv[2] ?? 120);
@@ -14,7 +14,7 @@ for (let m = 0; m < N; m++) {
     players.push({ id: 'b' + i, name: 'b' + i, charId: c.id, isBot: true, difficulty: 1 });
     picks[c.id] = (picks[c.id] ?? 0) + 1;
   }
-  const w = new World(buildMap(MAP), { mode: 'ffa', durationMs: 240000, seed: 1000 + m, players, poison: true, mapEvents: true, countdownMs: 0 });
+  const w = new World(buildMap(MAP), { mode: 'ffa', durationMs: RULES.matchDurationMs, seed: 1000 + m, players, poison: true, mapEvents: true, countdownMs: 0 });
   while (w.phase !== 'ended') { w.step(DT); w.drainEvents(); }
   totalLen += w.time; kills += w.stats.kills; bushKills += w.stats.bushKills; supers += w.stats.superUses;
   for (const r of w.ranking) { place[r.charId] = (place[r.charId] ?? 0) + r.place; if (r.place === 1) wins[r.charId] = (wins[r.charId] ?? 0) + 1; }

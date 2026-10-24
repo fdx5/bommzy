@@ -1,9 +1,10 @@
 /**
- * Cosmetic catalogue (shop). Shared by client (rendering, UI) and server (prices, slot validation).
- * 8 kinds × 10 items = 80. One item per slot; glasses and sunglasses share the eyewear slot.
+ * Shop catalogue shared by client and server (prices, ownership and slot validation).
+ * 80 cosmetics plus 10 weapons. Glasses and sunglasses share the eyewear slot.
  */
-export type ItemKind = 'glasses' | 'sunglasses' | 'hat' | 'top' | 'pants' | 'shoes' | 'necklace' | 'bracelet';
-export type ItemSlot = 'eyewear' | 'hat' | 'top' | 'pants' | 'shoes' | 'necklace' | 'bracelet';
+import { SHOP_WEAPONS } from './weapons';
+export type ItemKind = 'glasses' | 'sunglasses' | 'hat' | 'top' | 'pants' | 'shoes' | 'necklace' | 'bracelet' | 'weapon';
+export type ItemSlot = 'eyewear' | 'hat' | 'top' | 'pants' | 'shoes' | 'necklace' | 'bracelet' | 'weapon';
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export interface ItemDef {
@@ -21,10 +22,12 @@ export interface ItemDef {
 }
 
 export const SLOT_OF: Record<ItemKind, ItemSlot> = {
+  weapon: 'weapon',
   glasses: 'eyewear', sunglasses: 'eyewear', hat: 'hat', top: 'top', pants: 'pants', shoes: 'shoes', necklace: 'necklace', bracelet: 'bracelet',
 };
-export const SLOTS: ItemSlot[] = ['hat', 'eyewear', 'top', 'pants', 'shoes', 'necklace', 'bracelet'];
+export const SLOTS: ItemSlot[] = ['weapon', 'hat', 'eyewear', 'top', 'pants', 'shoes', 'necklace', 'bracelet'];
 export const KIND_LABEL: Record<ItemKind, { ko: string; en: string; emoji: string }> = {
+  weapon: { ko: '무기', en: 'Weapons', emoji: '⚡' },
   glasses: { ko: '안경', en: 'Glasses', emoji: '👓' },
   sunglasses: { ko: '선글라스', en: 'Sunglasses', emoji: '🕶️' },
   hat: { ko: '모자', en: 'Hats', emoji: '🎩' },
@@ -35,6 +38,7 @@ export const KIND_LABEL: Record<ItemKind, { ko: string; en: string; emoji: strin
   bracelet: { ko: '팔찌', en: 'Bracelets', emoji: '💫' },
 };
 export const SLOT_LABEL: Record<ItemSlot, { ko: string; en: string }> = {
+  weapon: { ko: '무기', en: 'Weapon' },
   eyewear: { ko: '안경', en: 'Eyewear' }, hat: { ko: '모자', en: 'Hat' }, top: { ko: '윗옷', en: 'Top' }, pants: { ko: '바지', en: 'Pants' },
   shoes: { ko: '신발', en: 'Shoes' }, necklace: { ko: '목걸이', en: 'Necklace' }, bracelet: { ko: '팔찌', en: 'Bracelet' },
 };
@@ -48,6 +52,8 @@ const make = (kind: ItemKind, rows: Row[]): ItemDef[] => rows.map(([sfx, name, n
 }));
 
 export const ITEMS: ItemDef[] = [
+  ...SHOP_WEAPONS.map((w): ItemDef => ({ id: w.id, kind: 'weapon', slot: 'weapon', name: w.name, nameEn: w.nameEn,
+    price: w.price!, rarity: rarityOf(w.price!), style: w.id, colors: [w.fxColor!, w.fxAccent!, '#34425D'] })),
   ...make('glasses', [
     ['round', '동글 안경', 'Round Specs', 1000, 'round', '#6B5B7B', '#FFFFFF', '#6B5B7B'],
     ['square', '네모 안경', 'Square Specs', 1500, 'square', '#4A3B5C', '#FFFFFF', '#4A3B5C'],
@@ -147,7 +153,7 @@ export const ITEMS: ItemDef[] = [
 ];
 
 export const ITEM_BY_ID: Record<string, ItemDef> = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
-export const ITEM_KINDS: ItemKind[] = ['hat', 'glasses', 'sunglasses', 'top', 'pants', 'shoes', 'necklace', 'bracelet'];
+export const ITEM_KINDS: ItemKind[] = ['weapon', 'hat', 'glasses', 'sunglasses', 'top', 'pants', 'shoes', 'necklace', 'bracelet'];
 
 /** Equipment for one character: slot → item id. */
 export type Equipment = Partial<Record<ItemSlot, string>>;

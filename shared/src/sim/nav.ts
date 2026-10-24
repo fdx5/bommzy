@@ -1,5 +1,5 @@
 import type { Obstacle } from './types';
-import type { Vec2 } from '../math';
+import { segCircle, segAABB, type Vec2 } from '../math';
 
 /** 1m navigation grid with incremental updates (rocks/crates break) and A* (octile). */
 export class NavGrid {
@@ -13,7 +13,7 @@ export class NavGrid {
   private gen = 1;
   private heap: number[] = [];
 
-  constructor(private half: number, private obstacles: Obstacle[], private inflate = 0.6) {
+  constructor(private half: number, private obstacles: Obstacle[], private inflate = 0.72) {
     this.n = Math.round(half * 2);
     const N = this.n * this.n;
     this.blocked = new Uint8Array(N);
@@ -51,15 +51,31 @@ export class NavGrid {
     this.rebuild(o.x - e, o.y - e, o.x + e, o.y + e);
   }
 
+  canStandAt(p: Vec2, radius = this.inflate) {
+    if (Math.abs(p.x) > this.half - radius || Math.abs(p.y) > this.half - radius) return false;
+    return !this.obstacles.some((o) => o.alive && o.blocksMove && (o.shape === 'circle'
+      ? Math.hypot(p.x - o.x, p.y - o.y) < o.r + radius
+      : Math.abs(p.x - o.x) < o.hw + radius && Math.abs(p.y - o.y) < o.hh + radius));
+  }
+
+  canWalkSegment(a: Vec2, b: Vec2, radius = this.inflate) {
+    if (!this.canStandAt(b, radius)) return false;
+    return !this.obstacles.some((o) => o.alive && o.blocksMove && (o.shape === 'circle'
+      ? segCircle(a.x, a.y, b.x, b.y, o.x, o.y, o.r + radius)
+      : segAABB(a.x, a.y, b.x, b.y, o.x - o.hw - radius, o.y - o.hh - radius, o.x + o.hw + radius, o.y + o.hh + radius)) >= 0);
+  }
+
   private nearestOpen(c: number) {
     if (!this.blocked[c]) return c;
     const n = this.n, cx = c % n, cy = Math.floor(c / n);
-    for (let r = 1; r < 6; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    let best = -1, distance = Infinity;
+    for (let r = 1; r < 9; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       const x = cx + dx, y = cy + dy;
       if (x < 0 || y < 0 || x >= n || y >= n) continue;
-      if (!this.blocked[y * n + x]) return y * n + x;
+      const d = dx * dx + dy * dy;
+      if (!this.blocked[y * n + x] && d < distance) { best = y * n + x; distance = d; }
     }
-    return c;
+    return best >= 0 ? best : c;
   }
 
   /** Returns waypoints (cell centres, string-pulled lightly), excluding the start. */
@@ -67,7 +83,8 @@ export class NavGrid {
     const n = this.n;
     const s = this.nearestOpen(this.cellOf(from.x, from.y));
     const t = this.nearestOpen(this.cellOf(to.x, to.y));
-    if (s === t) return [to];
+    if (this.blocked[s] || this.blocked[t]) return null;
+    if (s === t) return [this.canWalkSegment(from, to) ? { ...to } : this.center(t)];
     const gen = ++this.gen;
     const tx = t % n, ty = Math.floor(t / n);
     const hfn = (c: number) => {
@@ -118,13 +135,17 @@ export class NavGrid {
     const cells: number[] = [];
     for (let c = t; c !== -1 && c !== s; c = this.from[c]) cells.push(c);
     cells.reverse();
-    // keep only turning points
+    // Keep a safe endpoint when the requested goal is inside cover (e.g. a crate).
+    // Never replace the final turning point with an obstructed raw goal.
+    const raw = [this.center(s), ...cells.map((c) => this.center(c))];
+    if (this.canWalkSegment(raw[raw.length - 1], to)) raw.push({ ...to });
     const pts: Vec2[] = [];
-    for (let i = 0; i < cells.length; i++) {
-      const prev = i > 0 ? cells[i - 1] : s, next = cells[i + 1];
-      if (next === undefined || next - cells[i] !== cells[i] - prev) pts.push(this.center(cells[i]));
+    let anchor = from, i = 0;
+    while (i < raw.length) {
+      let far = i;
+      while (far + 1 < raw.length && this.canWalkSegment(anchor, raw[far + 1])) far++;
+      pts.push(raw[far]); anchor = raw[far]; i = far + 1;
     }
-    if (pts.length) pts[pts.length - 1] = { x: to.x, y: to.y };
     return pts;
   }
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { CHAR_BY_ID, superOf, weaponOf, type World, type Projectile, type CharacterId } from '@pastel/shared';
+import { CHAR_BY_ID, WEAPONS, SHOP_WEAPONS, superOf, weaponOf, type WeaponDef, type World, type Projectile, type CharacterId } from '@pastel/shared';
 import { toonMaterial, outlineMaterial, radialTexture, globalUniforms } from './toon';
 import type { VFX } from './vfx';
 import { SHAPE } from './vfx';
@@ -112,6 +112,7 @@ export class Entities {
   private vortices: Pool;
   private waves: Pool;
   private claws: Pool;
+  private arsenal = new Map<string, Pool>();
   readonly aim: AimIndicator;
   private col = new THREE.Color();
   private static readonly WHITE = new THREE.Color('#FFFFFF');
@@ -186,11 +187,27 @@ export class Entities {
     // Hoya's claw: a thin standing crescent slash
     const clawGeo = new THREE.TorusGeometry(0.32, 0.045, 5, 16, Math.PI * 0.7).rotateZ(-Math.PI * 0.35).rotateX(Math.PI / 2).rotateX(0.5).scale(0.5, 1, 1);
     this.claws = new Pool(clawGeo, new THREE.MeshBasicMaterial({ color: '#FFFFFF' }), 60, scene, new THREE.InstancedMesh(clawGeo, outlineMaterial('#5B4A7A', 0.03), 60), true);
+    for (const w of SHOP_WEAPONS) {
+      let g: THREE.BufferGeometry;
+      switch (w.projectileType) {
+        case 'bullet': g = new THREE.CylinderGeometry(0.08, 0.14, w.id === 'ionCarbine' ? 0.7 : 0.5, 6).rotateZ(Math.PI / 2); break;
+        case 'pellet': g = new THREE.OctahedronGeometry(0.2); break;
+        case 'arrow': g = mergeGeometries([new THREE.ConeGeometry(0.18, 0.7, 4).rotateZ(-Math.PI / 2), new THREE.BoxGeometry(0.5, 0.06, 0.06).translate(-0.35, 0, 0)])!; break;
+        case 'boomerang': g = new THREE.TorusGeometry(0.3, 0.09, 4, 3).rotateX(Math.PI / 2); break;
+        case 'bubble': g = new THREE.SphereGeometry(0.38, 14, 10); break;
+        case 'wave': g = new THREE.TorusGeometry(0.55, 0.09, 6, 24).rotateY(Math.PI / 2); break;
+        case 'claw': g = new THREE.ConeGeometry(0.14, 0.65, 3).rotateZ(-Math.PI / 2); break;
+        default: g = w.id === 'eclipseLauncher' ? new THREE.IcosahedronGeometry(0.32) : new THREE.OctahedronGeometry(0.3);
+      }
+      const material = w.projectileType === 'bubble' ? bubbleMaterial(0.9, w.fxColor) : toonMaterial({ color: w.fxColor, emissive: new THREE.Color(w.fxColor).multiplyScalar(0.3), rim: 0.9 });
+      this.arsenal.set(w.id, new Pool(g, material, 64, scene));
+    }
     this.aim = new AimIndicator(scene);
   }
 
   update(world: World, alpha: number, dt: number, localId: string | null) {
     const t = world.time / 1000;
+    for (const pool of this.arsenal.values()) pool.begin();
     for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars, this.vortices, this.waves, this.claws]) p.begin();
     this.trailT += dt;
     const doTrail = this.trailT > 0.03;
@@ -270,6 +287,7 @@ export class Entities {
       }
     }
 
+    for (const pool of this.arsenal.values()) pool.end();
     for (const p of [this.bullets, this.pellets, this.arrows, this.boomerangs, this.bubbles, this.bombs, this.bigBubbles, this.markers, this.shadows, this.cubes, this.flowers, this.superStars, this.vortices, this.waves, this.claws]) p.end();
   }
 
@@ -282,6 +300,23 @@ export class Entities {
     const x = p.px + (p.x - p.px) * alpha, z = p.py + (p.y - p.py) * alpha;
     const ang = Math.atan2(p.vy, p.vx);
     const mine = p.ownerId === localId;
+    const upgrade = !p.isSuper && p.weaponId ? WEAPONS[p.weaponId] : undefined;
+    if (upgrade?.fxColor && doTrail) {
+      this.vfx.trail(x, p.kind === 'arc' ? p.z : 0.85, z, upgrade.fxColor, 0.5, SHAPE[upgrade.fxShape ?? 'star'], 0.25);
+      this.vfx.sparkle(x, p.kind === 'arc' ? p.z : 0.85, z, upgrade.fxAccent!, 1, 0.45);
+    }
+    const body = upgrade?.baseWeaponId ? this.arsenal.get(upgrade.id) : undefined;
+    if (body) {
+      const height = p.kind === 'arc' ? p.z : 0.8;
+      const spin = p.kind === 'boomerang' ? -p.spin : p.kind === 'arc' ? world.time * 0.008 : -ang;
+      body.push(x, height, z, p.kind === 'wave' ? 1 + p.traveled / p.maxRange * 0.7 : 1, spin);
+      this.shadows.push(x, 0.02, z, 0.6);
+      if (p.kind === 'arc') this.markers.push(p.tx, 0.05, p.ty, p.splash * (0.4 + 0.6 * Math.min(1, p.t)));
+      const prev = this.lastPos.get(p.id);
+      if (prev && p.kind !== 'arc') this.vfx.tracer(prev.x, prev.z, x, z, height, upgrade!.fxColor!, 0.25, 0.13, 0.4);
+      this.lastPos.set(p.id, { x, z });
+      return;
+    }
     switch (p.kind) {
       case 'bullet': {
         const sup = p.isSuper;
@@ -407,9 +442,9 @@ export class AimIndicator {
     scene.add(this.group);
   }
 
-  show(charId: CharacterId, isSuper: boolean, x: number, z: number, angle: number, dist: number, strength: number) {
+  show(charId: CharacterId, isSuper: boolean, x: number, z: number, angle: number, dist: number, strength: number, equipped?: WeaponDef) {
     const def = CHAR_BY_ID[charId];
-    const w = weaponOf(def), s = superOf(def);
+    const w = equipped ?? weaponOf(def), s = superOf(def);
     this.group.visible = strength > 0.01;
     if (!this.group.visible) return;
     this.group.position.set(x, 0.04, z);

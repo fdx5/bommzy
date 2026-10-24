@@ -1,4 +1,4 @@
-import { CHAR_BY_ID, weaponOf, superOf } from '../data/characters';
+import { CHAR_BY_ID, superOf } from '../data/characters';
 import { segCircle, segAABB, RNG, DEG, type Vec2 } from '../math';
 import { emptyInput, type Fighter, type PlayerInput } from './types';
 import type { World } from './world';
@@ -63,7 +63,8 @@ export class Bot {
     const now = world.time;
     const P = DIFF[this.difficulty];
     const def = CHAR_BY_ID[me.charId];
-    const w = weaponOf(def);
+    const w = world.weapon(me);
+    const family = w.baseWeaponId ?? w.id;
 
     if (this.passive) {
       const a = now / 1400 + this.wobble;
@@ -122,10 +123,11 @@ export class Bot {
       const g = { x: me.x * 0.2, y: me.y * 0.2 };
       [mx, my] = this.goTo(world, me, g);
     } else if (this.state === 'fight' && target) {
-      const pref = PREF_RANGE[w.id] ?? 9;
+      const closeSuper = (me.superCharge >= 1 || me.superStock > 0) && hpFrac > 0.55 && ['tornado', 'roar'].includes(superOf(def).kind);
+      const pref = closeSuper ? 3.1 : PREF_RANGE[family] ?? 9;
       const arc = w.projectileType === 'arc';
       const los = arc || lineOfSight(world, me.x, me.y, target.x, target.y);
-      const dx = (target.x - me.x) / dist, dy = (target.y - me.y) / dist;
+      const dx = (target.x - me.x) / Math.max(0.01, dist), dy = (target.y - me.y) / Math.max(0.01, dist);
       if (!los) {
         [mx, my] = this.goTo(world, me, target);
       } else {
@@ -136,11 +138,11 @@ export class Bot {
         my = dy * fwd + dx * this.strafe * 0.75;
         if (fwd > 0 && dist > pref + 4) { const [px, py] = this.goTo(world, me, target); mx = px * 0.8 + mx * 0.2; my = py * 0.8 + my * 0.2; }
       }
-      if (los && dist <= (FIRE_RANGE[w.id] ?? w.range * 0.95) && reacted) { aimAt = this.lead(target, me, w.projectileSpeed, arc); wantFire = true; }
+      if (los && dist <= (FIRE_RANGE[family] ?? w.range * 0.95) && reacted) { aimAt = this.lead(target, me, w.projectileSpeed, arc); wantFire = true; }
       else if (los && dist <= w.range * 1.1) aimAt = { x: target.x, y: target.y };
 
       // super usage
-      if (me.superCharge >= 1) {
+      if (me.superCharge >= 1 || me.superStock > 0) {
         if (this.superReadyAt < 0) this.superReadyAt = now + P.superDelay;
         if (now >= this.superReadyAt) {
           const sd = superOf(def);
@@ -166,7 +168,7 @@ export class Bot {
       }
     } else if (this.state === 'hunt' && this.lastSeen) {
       [mx, my] = this.goTo(world, me, this.lastSeen);
-      if (Math.hypot(this.lastSeen.x - me.x, this.lastSeen.y - me.y) < 1.5) this.lastSeen = null;
+      if (this.lastSeen && Math.hypot(this.lastSeen.x - me.x, this.lastSeen.y - me.y) < 1.5) this.lastSeen = null;
     } else if (this.state === 'retreat') {
       if (!this.goal || now > this.goalUntil || (me.inBush >= 0 && !target)) {
         if (me.inBush < 0) { this.goal = this.findBush(world, me); this.goalUntil = now + 5000; }
@@ -187,7 +189,10 @@ export class Bot {
       for (const o of world.map.obstacles) {
         if (o.type !== 'crate' || !o.alive) continue;
         const d = Math.hypot(o.x - me.x, o.y - me.y);
-        if (d < w.range * 0.85 && (w.projectileType === 'arc' || lineOfSight(world, me.x, me.y, o.x, o.y, -0.2))) {
+        // The target crate must not occlude its own centre. Trace only to its near face.
+        const coverRadius = o.shape === 'box' ? Math.hypot(o.hw, o.hh) : o.r;
+        const near = Math.max(0, d - coverRadius - 0.35) / Math.max(d, 0.01);
+        if (d < w.range * 0.85 && (w.projectileType === 'arc' || lineOfSight(world, me.x, me.y, me.x + (o.x - me.x) * near, me.y + (o.y - me.y) * near))) {
           aimAt = { x: o.x, y: o.y }; wantFire = true;
           if (o.id === this.goalCrate && d < Math.max(2.5, w.range * 0.6)) { mx = 0; my = 0; }
           else if (d < 4) { mx *= 0.2; my *= 0.2; }
@@ -223,12 +228,25 @@ export class Bot {
       }
     }
 
-    // ── stuck detection
+    // Project combat strafing / dodges onto a collision-free direction instead of pushing a wall.
+    const desired = Math.hypot(mx, my);
+    if (desired > 0.1) {
+      const a = Math.atan2(my, mx), radius = def.hitboxRadius + 0.04;
+      let found = false;
+      for (const turn of [0, this.strafe * 0.45, -this.strafe * 0.45, this.strafe * 0.9, -this.strafe * 0.9, 1.5, -1.5, Math.PI]) {
+        const ux = Math.cos(a + turn), uy = Math.sin(a + turn);
+        if (!world.nav.canStandAt({ x: me.x + ux * 0.9, y: me.y + uy * 0.9 }, radius)) continue;
+        mx = ux * Math.min(1, desired); my = uy * Math.min(1, desired); found = true; break;
+      }
+      if (!found) { mx = 0; my = 0; this.repathAt = 0; this.goal = null; }
+    }
+
+    // ── stuck detection (accumulate slow progress too, not just a perfectly stationary frame)
     const moved = Math.hypot(me.x - this.lastX, me.y - this.lastY);
     this.lastX = me.x; this.lastY = me.y;
-    if (Math.hypot(mx, my) > 0.3 && moved < 0.3 * dt) {
+    if (desired > 0.3 && moved < def.moveSpeed * dt * 0.18) {
       this.stuckT += dt;
-      if (this.stuckT > 0.6) { this.path = []; this.repathAt = 0; this.goal = null; this.stuckT = 0; this.dodgeX = this.rng.range(-1, 1); this.dodgeY = this.rng.range(-1, 1); this.dodgeUntil = now + 400; }
+      if (this.stuckT > 0.6) { this.path = []; this.pathGoal = null; this.repathAt = 0; this.goal = null; this.goalCrate = -1; this.stuckT = 0; this.strafe *= -1; this.dodgeX = mx || this.rng.range(-1, 1); this.dodgeY = my || this.rng.range(-1, 1); this.dodgeUntil = now + 650; }
     } else this.stuckT = 0;
 
     const ml = Math.hypot(mx, my);
@@ -263,15 +281,60 @@ export class Bot {
     const direct = Math.hypot(goal.x - me.x, goal.y - me.y);
     if (direct < 0.4) return [0, 0];
     if (!this.pathGoal || Math.hypot(this.pathGoal.x - goal.x, this.pathGoal.y - goal.y) > 2 || now > this.repathAt || this.path.length === 0) {
-      this.path = world.nav.findPath(me, goal) ?? [goal];
+      let route = world.nav.findPath(me, goal);
+      if (!route) route = this.approachRoute(world, me, goal);
+      if (!route) route = this.escapeRoute(world, me, goal);
+      if (!route) { this.goal = null; this.goalCrate = -1; return [0, 0]; }
+      this.path = route;
       this.pathGoal = { x: goal.x, y: goal.y };
       this.repathAt = now + 900 + this.rng.range(0, 400);
     }
-    while (this.path.length > 1 && Math.hypot(this.path[0].x - me.x, this.path[0].y - me.y) < 0.8) this.path.shift();
+    while (this.path.length > 1 && (Math.hypot(this.path[0].x - me.x, this.path[0].y - me.y) < 0.35 || world.nav.canWalkSegment(me, this.path[1]))) this.path.shift();
     const wp = this.path[0] ?? goal;
-    const dx = wp.x - me.x, dy = wp.y - me.y, d = Math.hypot(dx, dy) || 1;
+    const dx = wp.x - me.x, dy = wp.y - me.y, d = Math.hypot(dx, dy);
+    if (this.path.length === 1 && d < 0.5 && direct > 1 && this.goalCrate < 0) {
+      // A projected endpoint is reachable, but the original goal can be inside water/cover.
+      // Reaching that endpoint completes the search; do not wait there for a raw blocked goal.
+      this.path = []; this.pathGoal = null; this.goal = null; this.goalUntil = 0;
+      if (this.state === 'hunt') this.lastSeen = null;
+      return [0, 0];
+    }
     const slow = this.path.length <= 1 && d < 1 ? d : 1;
-    return [(dx / d) * slow, (dy / d) * slow];
+    return [(dx / Math.max(d, 0.001)) * slow, (dy / Math.max(d, 0.001)) * slow];
+  }
+
+  /** A rival's cell can be in another navigation component. Find a reachable firing position. */
+  private approachRoute(world: World, me: Fighter, goal: Vec2): Vec2[] | null {
+    const weapon = world.weapon(me), points: Vec2[] = [];
+    for (const r of [2.5, Math.min(5, weapon.range * 0.7), Math.min(9, weapon.range * 0.85)]) {
+      for (let i = 0; i < 16; i++) {
+        const a = i * Math.PI / 8, p = { x: goal.x + Math.cos(a) * r, y: goal.y + Math.sin(a) * r };
+        if (world.nav.canStandAt(p) && (weapon.projectileType === 'arc' || lineOfSight(world, p.x, p.y, goal.x, goal.y))) points.push(p);
+      }
+    }
+    points.sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
+    for (const p of points) {
+      const route = world.nav.findPath(me, p);
+      if (route) return route;
+    }
+    return null;
+  }
+
+  /** Dashes/knockback can leave a fighter in a gap narrower than the conservative 1m grid.
+   * Walk out using the actual hitbox, then rejoin a connected navigation cell. */
+  private escapeRoute(world: World, me: Fighter, goal: Vec2): Vec2[] | null {
+    const angle = Math.atan2(goal.y - me.y, goal.x - me.x);
+    const radius = CHAR_BY_ID[me.charId].hitboxRadius * 0.97;
+    for (const distance of [1.5, 3, 5, 7]) {
+      for (const turn of [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, 8]) {
+        const a = angle + turn * Math.PI / 8;
+        const p = { x: me.x + Math.cos(a) * distance, y: me.y + Math.sin(a) * distance };
+        if (!world.nav.canStandAt(p) || !world.nav.canWalkSegment(me, p, radius)) continue;
+        const tail = world.nav.findPath(p, goal);
+        if (tail) return [p, ...tail];
+      }
+    }
+    return null;
   }
 
   private findBush(world: World, me: Fighter): Vec2 | null {
@@ -280,6 +343,7 @@ export class Bot {
       const s = world.bushStates[i];
       if (!s.alive || s.withered) return;
       if (world.inPoison(b.x, b.y)) return;
+      if (!world.nav.canStandAt(b)) return;
       let d = Math.hypot(b.x - me.x, b.y - me.y);
       // avoid bushes near visible enemies
       for (const f of world.fighters) if (f !== me && f.alive && world.visible(me.id, f) && Math.hypot(f.x - b.x, f.y - b.y) < 6) d += 15;
@@ -294,6 +358,7 @@ export class Bot {
     let best: Vec2 | null = null, bd = 26;
     for (const p of world.pickups) {
       if (p.kind === 'heal' && me.hp > me.maxHp * 0.7) continue;
+      if (!world.nav.canStandAt(p)) continue;
       const d = Math.hypot(p.x - me.x, p.y - me.y);
       if (d < bd && !world.inPoison(p.x, p.y)) { bd = d; best = p; }
     }
@@ -312,14 +377,18 @@ export class Bot {
       return;
     }
     this.goalCrate = -1;
-    if (this.rng.next() < 0.35) {
+    if (!world.poisonActive && !this.lastSeen && this.rng.next() < 0.18) {
       const bush = this.findBush(world, me);
       if (bush && Math.hypot(bush.x - me.x, bush.y - me.y) < 14) {
-        this.goal = bush; this.state = 'ambush'; this.ambushUntil = now + this.rng.range(3000, 6500); return;
+        this.goal = bush; this.state = 'ambush'; this.ambushUntil = now + this.rng.range(1200, 2400); return;
       }
     }
     const lim = world.poisonActive ? Math.max(4, world.poisonRadius - 4) : 26;
-    const a = this.rng.range(0, Math.PI * 2), r = this.rng.range(3, lim);
-    this.goal = { x: Math.max(-lim, Math.min(lim, me.x * 0.4 + Math.cos(a) * r)), y: Math.max(-lim, Math.min(lim, me.y * 0.4 + Math.sin(a) * r)) };
+    this.goal = null;
+    for (let i = 0; i < 12; i++) {
+      const a = this.rng.range(0, Math.PI * 2), r = this.rng.range(3, lim);
+      const p = { x: Math.max(-lim, Math.min(lim, me.x * 0.4 + Math.cos(a) * r)), y: Math.max(-lim, Math.min(lim, me.y * 0.4 + Math.sin(a) * r)) };
+      if (world.nav.canStandAt(p)) { this.goal = p; break; }
+    }
   }
 }
