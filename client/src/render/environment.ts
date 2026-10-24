@@ -958,9 +958,9 @@ export class Environment {
     void time;
   }
 
-  /** Grass pushers: up to 8 character positions. */
+  /** Grass pushers: one uniform per fighter. */
   setPushers(list: { x: number; z: number; s: number }[]) {
     const arr = globalUniforms.uPushers.value;
-    for (let i = 0; i < 8; i++) { const p = list[i]; if (p) arr[i].set(p.x, p.z, p.s); else arr[i].set(9999, 9999, 0); }
+    for (let i = 0; i < arr.length; i++) { const p = list[i]; if (p) arr[i].set(p.x, p.z, p.s); else arr[i].set(9999, 9999, 0); }
   }
 }

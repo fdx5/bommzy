@@ -4,8 +4,9 @@ import { NavGrid } from '../src/sim/nav';
 
 describe.each(MAPS.map((m) => [m.id]))('map %s', (id) => {
   const m = buildMap(id);
-  it('has 8 spawns, 12 crates, bushes and cover', () => {
-    expect(m.spawns).toHaveLength(8);
+  it('has 12 spawns, 12 crates, bushes and cover', () => {
+    expect(m.spawns).toHaveLength(RULES.playerCount);
+    expect(new Set(m.spawns.map((s) => `${s.x.toFixed(3)},${s.y.toFixed(3)}`)).size).toBe(RULES.playerCount);
     expect(m.obstacles.filter((o) => o.type === 'crate')).toHaveLength(12);
     expect(m.bushes.length).toBeGreaterThan(20);
     expect(m.obstacles.filter((o) => o.type === 'rock').length).toBeGreaterThan(16);
@@ -29,18 +30,19 @@ describe.each(MAPS.map((m) => [m.id]))('map %s', (id) => {
   });
   it('every spawn can walk to the centre and to its neighbour', () => {
     const nav = new NavGrid(m.half, m.obstacles);
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < RULES.playerCount; i++) {
       const s = m.spawns[i];
       expect(nav.findPath(s, { x: 0.5, y: 6.5 }, 20000), `spawn ${i} → centre`).not.toBeNull();
-      expect(nav.findPath(s, m.spawns[(i + 1) % 8], 20000), `spawn ${i} → ${i + 1}`).not.toBeNull();
+      expect(nav.findPath(s, m.spawns[(i + 1) % m.spawns.length], 20000), `spawn ${i} → ${i + 1}`).not.toBeNull();
     }
   });
-  it('plays a full 8-bot match to the end', () => {
-    const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS).slice(0, 8).map((c, i) => ({ id: 'b' + i, name: 'b' + i, charId: c.id, isBot: true, difficulty: 1 }));
+  it('plays a full 12-bot match to the end', () => {
+    const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS).slice(0, RULES.playerCount).map((c, i) => ({ id: 'b' + i, name: 'b' + i, charId: c.id, isBot: true, difficulty: 1 }));
     const w = new World(buildMap(id), { mode: 'ffa', durationMs: RULES.matchDurationMs, seed: 5, players, poison: true, mapEvents: true, countdownMs: 0 });
     let steps = 0;
     while (w.phase !== 'ended' && steps < 20 * 290) { w.step(1 / 20); w.drainEvents(); steps++; }
     expect(w.phase).toBe('ended');
+    expect(w.ranking.map((r) => r.place).sort((a, b) => a - b)).toEqual(Array.from({ length: RULES.playerCount }, (_, i) => i + 1));
   });
 });
 

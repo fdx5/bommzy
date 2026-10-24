@@ -7,7 +7,7 @@ for (const map of MAPS.filter((m) => !process.argv[3] || m.id === process.argv[3
   let len = 0, stalls = 0;
   for (let m = 0; m < N; m++) {
     const players: PlayerSlot[] = [];
-    for (let i = 0; i < 8; i++) { const c = CHARACTERS[(m + i) % CHARACTERS.length]; players.push({ id: 'b' + i, name: 'b' + i, charId: c.id, isBot: true, difficulty: 1 }); picks[c.id] = (picks[c.id] ?? 0) + 1; }
+    for (let i = 0; i < RULES.playerCount; i++) { const c = CHARACTERS[(m + i) % CHARACTERS.length]; players.push({ id: 'b' + i, name: 'b' + i, charId: c.id, isBot: true, difficulty: 1 }); picks[c.id] = (picks[c.id] ?? 0) + 1; }
     const w = new World(buildMap(map.id), { mode: 'ffa', durationMs: RULES.matchDurationMs, seed: 5000 + m, players, poison: true, mapEvents: true, countdownMs: 0 });
     const still = new Map<string, number>();
     while (w.phase !== 'ended') {

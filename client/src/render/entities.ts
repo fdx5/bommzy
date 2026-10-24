@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { CHAR_BY_ID, WEAPONS, SHOP_WEAPONS, superOf, weaponOf, type WeaponDef, type World, type Projectile, type CharacterId } from '@pastel/shared';
+import { MATCH_PLAYER_COUNT, CHAR_BY_ID, WEAPONS, SHOP_WEAPONS, superOf, weaponOf, type WeaponDef, type World, type Projectile, type CharacterId } from '@pastel/shared';
 import { toonMaterial, outlineMaterial, radialTexture, globalUniforms } from './toon';
 import type { VFX } from './vfx';
 import { SHAPE } from './vfx';
@@ -147,7 +147,7 @@ export class Entities {
     const rang = bananaGeometry(0, 1, 0.11, true).translate(0, 0, 0.05);
     this.boomerangs = new Pool(rang, toonMaterial({ vertexColors: true, rim: 0.55, spec: 0.5, shadowTint: '#E8C7A0' }), 40, scene, new THREE.InstancedMesh(rang, outlineMaterial('#8A5A12', 0.028), 40));
     const funnel = new THREE.CylinderGeometry(1, 0.45, 1.8, 28, 1, true).translate(0, 0.9, 0);
-    this.vortices = new Pool(funnel, vortexMaterial(), 8, scene);
+    this.vortices = new Pool(funnel, vortexMaterial(), MATCH_PLAYER_COUNT, scene);
     this.vortices.mesh.renderOrder = 7;
     this.bubbles = new Pool(new THREE.SphereGeometry(1, 18, 12), bubbleMaterial(0.9, '#FF3FA0'), 120, scene);
     this.bubbles.mesh.renderOrder = 8;
@@ -156,7 +156,7 @@ export class Entities {
       new THREE.CylinderGeometry(0.05, 0.05, 0.12, 6).translate(0, 0.26, 0),
     ])!;
     this.bombs = new Pool(bomb, toonMaterial({ color: '#B9A6DE', rim: 0.6 }), 40, scene, new THREE.InstancedMesh(bomb, outlineMaterial('#5C4C86', 0.03), 40));
-    this.bigBubbles = new Pool(new THREE.SphereGeometry(1, 24, 16), bubbleMaterial(0.8), 10, scene);
+    this.bigBubbles = new Pool(new THREE.SphereGeometry(1, 24, 16), bubbleMaterial(0.8), MATCH_PLAYER_COUNT, scene);
     this.bigBubbles.mesh.renderOrder = 9;
     const ring = new THREE.RingGeometry(0.85, 1, 40).rotateX(-Math.PI / 2);
     this.markers = new Pool(ring, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85, depthWrite: false }), 40, scene);

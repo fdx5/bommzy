@@ -30,7 +30,7 @@ const int = (v: unknown) => Number(v ?? 0);
 // ─────────────────────────────────────────────── health
 app.get('/api/health', async (c) => {
   await db.execute('SELECT 1');
-  return c.json({ ok: true, db: process.env.TURSO_DATABASE_URL ? 'turso' : 'local', version: '0.3.0', revision: process.env.RENDER_GIT_COMMIT ?? null });
+  return c.json({ ok: true, db: process.env.TURSO_DATABASE_URL ? 'turso' : 'local', version: '0.3.1', playerCount: RULES.playerCount, revision: process.env.RENDER_GIT_COMMIT ?? null });
 });
 
 // ─────────────────────────────────────────────── auth
@@ -202,10 +202,10 @@ const ResultBody = z.object({
   nickname: z.string().trim().min(1).max(12).optional(),
   charId: z.enum(CHARACTERS),
   mapId: z.enum(MAPS),
-  place: z.number().int().min(1).max(8),
-  kills: z.number().int().min(0).max(7),
-  assists: z.number().int().min(0).max(7),
-  damage: z.number().int().min(0).max(110_000),
+  place: z.number().int().min(1).max(RULES.playerCount),
+  kills: z.number().int().min(0).max(RULES.playerCount - 1),
+  assists: z.number().int().min(0).max(RULES.playerCount - 1),
+  damage: z.number().int().min(0).max(RULES.playerCount * 15_000),
   score: z.number().int().min(0),
   durationMs: z.number().int().min(10_000).max(RULES.matchDurationMs + 20_000),
 });

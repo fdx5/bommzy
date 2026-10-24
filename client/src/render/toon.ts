@@ -1,12 +1,13 @@
 import * as THREE from 'three';
+import { MATCH_PLAYER_COUNT } from '@pastel/shared';
 
 /** Global shader clock & wind shared by every material. */
 export const globalUniforms = {
   uTime: { value: 0 },
   uWindDir: { value: new THREE.Vector2(1, 0.3) },
   uWindBoost: { value: 0 },
-  /** xy = world x/z of up to 8 characters, z = strength. Grass bends away from them. */
-  uPushers: { value: Array.from({ length: 8 }, () => new THREE.Vector3()) },
+  /** xy = world x/z of every character, z = strength. Grass bends away from them. */
+  uPushers: { value: Array.from({ length: MATCH_PLAYER_COUNT }, () => new THREE.Vector3()) },
 };
 
 let gradient: THREE.DataTexture | null = null;
@@ -45,7 +46,7 @@ const WIND_VERTEX = /* glsl */ `
   transformed.z += (cos(wPh * 0.8) * 0.4 + uWindDir.y * uWindBoost) * wAmt;
   #ifdef USE_PUSH
   vec3 wWorld = wIp + transformed;
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < ${MATCH_PLAYER_COUNT}; i++) {
     vec2 dd = wWorld.xz - uPushers[i].xy;
     float dl = length(dd);
     float pk = (1.0 - smoothstep(0.15, 0.95, dl)) * uPushers[i].z;
@@ -121,7 +122,7 @@ export function toonMaterial(o: ToonOptions = {}): ToonMaterial {
       .replace('#include <common>', `#include <common>
         uniform float uTime; uniform float uWind; uniform float uWindBase; uniform vec2 uWindDir; uniform float uWindBoost;
         #ifdef USE_PUSH
-        uniform vec3 uPushers[8];
+        uniform vec3 uPushers[${MATCH_PLAYER_COUNT}];
         #endif
         #ifdef USE_FADE
         attribute float aFade; varying float vFade;

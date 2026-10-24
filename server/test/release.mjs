@@ -67,8 +67,19 @@ try {
     const result = await request('/api/results', { deviceId: 'release-qa-device-' + mapId, nickname: 'QA', charId: 'toto', mapId, place: 4, kills: 0, assists: 0, damage: 0, score: 0, durationMs: 270000 }, false);
     assert.equal(result.status, 200, mapId + JSON.stringify(result.body));
   }
+  const resultBody = { deviceId: 'release-qa-twelve', nickname: 'QA', charId: 'toto', mapId: 'meadow', place: 12, kills: 0, assists: 0, damage: 0, score: 0, durationMs: 270000 };
+  for (const place of [9, 10, 11, 12]) {
+    const result = await request('/api/results', { ...resultBody, place, deviceId: `release-qa-place-${place}` }, false);
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+  }
+  assert.equal((await request('/api/results', { ...resultBody, deviceId: 'release-qa-eleven-kills', place: 1, kills: 11, damage: 160000, score: 1100 }, false)).status, 200);
+  assert.equal((await request('/api/results', { ...resultBody, deviceId: 'release-qa-eleven-assists', place: 1, assists: 11, score: 440 }, false)).status, 200);
+  for (const invalid of [{ place: 13 }, { kills: 12 }, { assists: 12 }]) {
+    assert.equal((await request('/api/results', { ...resultBody, ...invalid }, false)).status, 400);
+  }
+  assert.equal((await request('/api/health')).body.playerCount, 12);
   const page = await fetch(base); assert.equal(page.status, 200); assert.match(await page.text(), /BOOMZY/i);
-  console.log('PASS: isolated API checks — 10 purchases, 80 equips, authentication, insufficient funds, duplicate ownership, slot validation, unequip, ledger, six new maps and 270s results.');
+  console.log('PASS: isolated API checks — shop, 80 equips, six maps, 270s results, ranks 9–12, 11 kills/assists, rejection above 12-player limits.');
   if (process.argv.includes('--serve')) {
     console.log('QA preview: ' + base + ' (local disposable account: arsenalqa)');
     await new Promise((done) => { process.once('SIGINT', done); process.once('SIGTERM', done); });

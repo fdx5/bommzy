@@ -1,6 +1,7 @@
 ﻿import { RNG, DEG, type Vec2 } from '../math';
 import type { BushDef, MapData, Obstacle, ObstacleType, SlipZone } from '../sim/types';
 import { clusterBushes } from '../sim/bush';
+import { MATCH_PLAYER_COUNT } from '../data/match';
 
 export const MAP_HALF = 40;
 export type MapId = 'meadow' | 'jungle_ruins' | 'jungle_lagoon' | 'desert' | 'glacier' | 'candy_town' | 'starlight'
@@ -74,6 +75,7 @@ const LAYOUTS: Record<MapId, (b: Builder) => void> = {
     b.line('rock', -24, 3, -18, 8, 1.45, 2.1); b.line('rock', -12, 10, -5, 12, 1.35, 2.2);
     b.line('rock', 12, -18, 23, -14, 1.4, 2.2); b.line('rock', 29, 21, 33, 25, 1.4, 2.2);
     b.line('bush', -6, 25, 6, 28, 1.2); b.line('bush', -27, -21, -17, -21, 1.1);
+    b.line('bush', -6, 17, 2, 17, 1.1);
     b.add('rock', 2, -7, 1.4); b.add('rock', 8, 4, 1.5);
   },
   glacier(b) {
@@ -102,6 +104,7 @@ const LAYOUTS: Record<MapId, (b: Builder) => void> = {
     for (const x of [8, 20]) { b.line('water', x, -25, x, -6, 2, 3); b.line('rock', x + 4, -24, x + 4, -14, 0.9); }
     b.trail([[-33, -14], [-28, 0], [28, 0], [33, 14]]); b.trail([[-2, -33], [-2, 33]]);
     b.line('bush', -25, -23, -15, -23, 1.2); b.line('bush', -28, 9, -15, 9, 1.2);
+    b.line('bush', -6, 14, 0, 14, 1.2);
     b.line('rock', -22, 16, -15, 16); b.arc('rock', 0, 0, 10, 30, 120, 1, 18);
   },
   ember_forge(b) {
@@ -149,7 +152,7 @@ const LAYOUTS: Record<MapId, (b: Builder) => void> = {
 export function buildMap(id: MapId = 'meadow', seed = 7): MapData {
   const info = MAP_BY_ID[id] ?? MAP_BY_ID.meadow, index = MAPS.indexOf(info);
   const rng = new RNG(seed + index * 131), b = new Builder(rng);
-  const spawns = Array.from({ length: 8 }, (_, i) => polar(34, 22.5 + i * 45));
+  const spawns = Array.from({ length: MATCH_PLAYER_COUNT }, (_, i) => polar(34, (i + 0.5) * 360 / MATCH_PLAYER_COUNT));
   // Twelve distributed objectives; positions vary by arena rather than a universal ring.
   const angle = index % 3 * 15;
   for (let i = 0; i < 4; i++) { const p = polar(7 + index % 3, angle + i * 90); b.props.push({ type: 'crate', ...p, r: 0.8 }); }
@@ -160,6 +163,8 @@ export function buildMap(id: MapId = 'meadow', seed = 7): MapData {
     const p = polar(36 + rng.next() * 2, i * 180 / 28);
     if (Math.abs(p.x) < 38 && Math.abs(p.y) < 38) b.add('tree', p.x, p.y, 0.75);
   }
+  // Keep perimeter cover outside the additional spawn clearings.
+  for (const x of [31, 36]) for (const y of [31, 36]) { b.add('tree', x, y, 0.75); b.add('tree', x, -y, 0.75); }
   const obstacles: Obstacle[] = [], bushes: BushDef[] = [], taken: Proto[] = [];
   for (const p of b.props) {
     if (Math.abs(p.x) + p.r > 39 || Math.abs(p.y) + p.r > 39) continue;

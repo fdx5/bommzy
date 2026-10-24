@@ -92,14 +92,14 @@ export class Match {
     } else {
       const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
       const pool = CHARACTERS.map((c) => c.id).filter((id) => id !== opts.charId);
-      for (let i = 1; i < 8; i++) {
+      for (let i = 1; i < RULES.playerCount; i++) {
         const charId = i < 6 ? pool[(i - 1) % pool.length] : CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)].id;
         const d = Math.max(0, Math.min(2, opts.difficulty + (i % 3 === 0 ? -1 : i % 4 === 0 ? 1 : 0))) as 0 | 1 | 2;
         players.push({ id: 'b' + i, name: names[i - 1], charId, isBot: true, difficulty: d });
       }
       // shuffle spawn order so the local player isn't always at spawn 0
       const me = players.shift()!;
-      players.splice(Math.floor(Math.random() * 8), 0, me);
+      players.splice(Math.floor(Math.random() * RULES.playerCount), 0, me);
     }
     this.world = new World(buildMap(opts.mode === 'tutorial' ? 'meadow' : opts.mapId), {
       mode: opts.mode, durationMs: RULES.matchDurationMs, seed, players, poison: opts.mode === 'ffa', mapEvents: opts.mode === 'ffa',

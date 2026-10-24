@@ -1,7 +1,8 @@
+import { MATCH_PLAYER_COUNT } from '@pastel/shared';
 type Dict = Record<string, string>;
 
 const ko: Dict = {
-  tapToStart: '화면을 터치해서 시작!', play: '대전 시작!', mode: '8인 개인전', characters: '캐릭터', records: '기록', settings: '설정',
+  tapToStart: '화면을 터치해서 시작!', play: '대전 시작!', mode: `${MATCH_PLAYER_COUNT}인 개인전`, characters: '캐릭터', records: '기록', settings: '설정',
   tutorial: '튜토리얼', select: '선택하기', selected: '선택됨', back: '뒤로', close: '닫기', hp: '체력', speed: '이동속도',
   weapon: '기본 무기', super: '슈퍼', gadget: '가젯', skins: '스킨', locked: '트로피 {n}개 필요', searching: '상대를 찾는 중…',
   fillingBots: '빈 자리는 봇이 채워요', cancel: '취소', alive: '생존', score: '점수', retired: '리타이어!', place: '{n}위',
@@ -74,7 +75,7 @@ const ko: Dict = {
 };
 
 const en: Dict = {
-  tapToStart: 'Tap to start!', play: 'Battle!', mode: '8-player Showdown', characters: 'Brawlers', records: 'Records', settings: 'Settings',
+  tapToStart: 'Tap to start!', play: 'Battle!', mode: `${MATCH_PLAYER_COUNT}-player Showdown`, characters: 'Brawlers', records: 'Records', settings: 'Settings',
   tutorial: 'Tutorial', select: 'Select', selected: 'Selected', back: 'Back', close: 'Close', hp: 'Health', speed: 'Speed',
   weapon: 'Attack', super: 'Super', gadget: 'Gadget', skins: 'Skins', locked: 'Needs {n} trophies', searching: 'Finding players…',
   fillingBots: 'Empty seats are filled with bots', cancel: 'Cancel', alive: 'Alive', score: 'Score', retired: 'Retired!', place: '#{n}',

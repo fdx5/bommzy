@@ -3,6 +3,7 @@ export * from './data/weapons';
 export * from './data/characters';
 export * from './data/balance';
 export * from './data/items';
+export * from './data/match';
 export * from './sim/types';
 export * from './sim/bush';
 export * from './sim/scoring';

@@ -32,7 +32,7 @@ export class Hud {
       <div class="vignette-hurt"></div>
       <div class="poison-tint"></div>
       <div class="hud-tl">
-        <span class="chip" data-k="alive">👤 8/8</span>
+        <span class="chip" data-k="alive">👤 ${world.aliveCount}/${world.fighters.length}</span>
         <span class="chip" data-k="time">⏱ 3:00</span>
         <span class="chip" data-k="score">⭐ 0</span>
         <span class="chip" data-k="cubes">🟩 0</span>

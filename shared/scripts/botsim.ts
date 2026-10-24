@@ -9,7 +9,7 @@ let totalLen = 0, kills = 0, bushKills = 0, supers = 0;
 const t0 = Date.now();
 for (let m = 0; m < N; m++) {
   const players: PlayerSlot[] = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < RULES.playerCount; i++) {
     const c = CHARACTERS[(m + i) % CHARACTERS.length];
     players.push({ id: 'b' + i, name: 'b' + i, charId: c.id, isBot: true, difficulty: 1 });
     picks[c.id] = (picks[c.id] ?? 0) + 1;

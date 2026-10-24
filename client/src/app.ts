@@ -142,7 +142,7 @@ export class App {
     const el = h(`<div class="title-screen">
       <div class="logo">${['#FFC8DD', '#A8E6CF', '#FFF5BA', '#B5DEFF', '#C3B1E1', '#FFAAA5'].map((c, i) => `<span style="color:${c};animation-delay:${i * 0.12}s">${'BOOMZY'[i]}</span>`).join('')}<span class="l2" style="color:#FFF5BA">붐지</span></div>
       <div class="tap stroke">${t('tapToStart')}</div>
-      <div class="chip" style="font-size:.85em;opacity:.85">v0.3 · 13개 맵 · 신규 무기 10종</div>
+      <div class="chip" style="font-size:.85em;opacity:.85">v0.3.1 · ${RULES.playerCount}인 대전 · 13개 맵</div>
     </div>`);
     el.addEventListener('pointerup', () => {
       audio.unlock();
@@ -458,16 +458,16 @@ export class App {
     const mapId: MapId = this.profile.mapId === 'random' || (MAP_BY_ID[this.profile.mapId].memberOnly && !this.account) ? randomMapId(!!this.account) : this.profile.mapId;
     const el = h(`<div class="mm"><div class="box panel">
       <h2 class="stroke" style="margin:0;font-size:1.8em"><span class="dots">${t('searching').replace('…', '')}</span></h2>
-      <div class="chip" style="margin-top:.4em">🎮 ${t('mode')} · <b class="cnt">1</b>/8</div>
+      <div class="chip" style="margin-top:.4em">🎮 ${t('mode')} · <b class="cnt">1</b>/${RULES.playerCount}</div>
       <div class="chip" style="margin:.4em 0 0 .3em">🗺️ ${this.mapLabel(mapId)}</div>
-      <div class="slots">${Array.from({ length: 8 }, (_, i) => `<div class="slot ${i === 0 ? 'in' : ''}">${i === 0 && this.portraits[this.profile.selected] ? `<img src="${this.portraits[this.profile.selected]}">` : '❔'}</div>`).join('')}</div>
+      <div class="slots">${Array.from({ length: RULES.playerCount }, (_, i) => `<div class="slot ${i === 0 ? 'in' : ''}">${i === 0 && this.portraits[this.profile.selected] ? `<img src="${this.portraits[this.profile.selected]}">` : '❔'}</div>`).join('')}</div>
       <div style="color:var(--ink-soft);font-size:.9em;margin-bottom:.8em">🤖 ${t('fillingBots')}</div>
       <button class="btn white" data-a="cancel">${t('cancel')}</button></div></div>`);
     let n = 1, cancelled = false;
     const slots = el.querySelectorAll('.slot');
     const tick = () => {
       if (cancelled) return;
-      if (n >= 8) { setTimeout(() => !cancelled && this.startMatch('ffa', mapId), 450); return; }
+      if (n >= RULES.playerCount) { setTimeout(() => !cancelled && this.startMatch('ffa', mapId), 450); return; }
       const c = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
       slots[n].classList.add('in');
       slots[n].innerHTML = this.portraits[c.id] ? `<img src="${this.portraits[c.id]}">` : '🙂';

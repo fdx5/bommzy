@@ -1,6 +1,7 @@
 import { CHAR_BY_ID, weaponOf, superOf, gadgetOf, type CharacterDef } from '../data/characters';
 import { WEAPONS, SHOP_WEAPONS, type WeaponDef } from '../data/weapons';
 import { SUPER_CHARGE_RATE } from '../data/balance';
+import { MATCH_PLAYER_COUNT } from '../data/match';
 import { clamp, segCircle, segAABB, RNG, wrapAngle, DEG, type Vec2 } from '../math';
 import { SpatialGrid } from './grid';
 import { NavGrid } from './nav';
@@ -23,6 +24,7 @@ export interface MatchConfig {
 }
 
 export const RULES = {
+  playerCount: MATCH_PLAYER_COUNT,
   /** FFA time limit, extended by 30 seconds along with the cloud's starting times. */
   matchDurationMs: 270000,
   regenDelayMs: 3000,

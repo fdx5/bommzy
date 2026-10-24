@@ -44,8 +44,8 @@ describe('geometry', () => {
 
 describe('map', () => {
   const m = buildMeadow();
-  it('has 8 spawns, 12 crates and a reasonable prop count', () => {
-    expect(m.spawns).toHaveLength(8);
+  it('has 12 spawns, 12 crates and a reasonable prop count', () => {
+    expect(m.spawns).toHaveLength(RULES.playerCount);
     expect(m.obstacles.filter((o) => o.type === 'crate')).toHaveLength(12);
     const trees = m.obstacles.filter((o) => o.type === 'tree').length;
     expect(trees).toBeGreaterThanOrEqual(40); expect(trees).toBeLessThanOrEqual(64);
@@ -289,13 +289,13 @@ describe('bush stealth (4-1)', () => {
 });
 
 describe('full bot match', () => {
-  it('8 bots finish a match with poison in reasonable time', () => {
-    const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS).slice(0, 8).map((c, i) => ({ id: 'b' + i, name: 'Bot' + i, charId: c.id, isBot: true, difficulty: 1 }));
+  it('12 bots finish a match with poison in reasonable time', () => {
+    const players: PlayerSlot[] = CHARACTERS.concat(CHARACTERS).slice(0, RULES.playerCount).map((c, i) => ({ id: 'b' + i, name: 'Bot' + i, charId: c.id, isBot: true, difficulty: 1 }));
     const w = new World(buildMeadow(), { mode: 'ffa', durationMs: 240000, seed: 11, players, poison: true, mapEvents: true, countdownMs: 0 });
     let steps = 0;
     while (w.phase !== 'ended' && steps < 60 * 260) { w.step(DT); w.drainEvents(); steps++; }
     expect(w.phase).toBe('ended');
-    expect(w.ranking.map((r) => r.place).sort()).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(w.ranking.map((r) => r.place).sort((a, b) => a - b)).toEqual(Array.from({ length: RULES.playerCount }, (_, i) => i + 1));
     expect(w.stats.kills).toBeGreaterThanOrEqual(3);
     expect(w.stats.superUses).toBeGreaterThan(0);
   });
